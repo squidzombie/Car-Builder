@@ -46,6 +46,12 @@ export function TiltCard({
   const tiltYDeg = `${(view.tiltX * MAX_ROTATE_DEG).toFixed(2)}deg`
   // back side renders mirrored by the flip; counter-rotate its content
   const mirror = side === 'back' ? { transform: [{ scaleX: -1 }] } : undefined
+  // the mirror flips the canvas' horizontal axis, so flip the shader's
+  // horizontal tilt/light too — highlights keep tracking the physical light
+  const sideView =
+    side === 'back'
+      ? { tiltX: -view.tiltX, tiltY: view.tiltY, lightX: 1 - view.lightX, lightY: view.lightY }
+      : view
 
   return (
     <Pressable onPress={onFlip}>
@@ -67,7 +73,7 @@ export function TiltCard({
       >
         <View style={[{ width, height }, mirror]}>
           <Canvas style={{ width, height }}>
-            <CardRenderer doc={doc} side={side} viewState={view} assets={assets} scale={scale} />
+            <CardRenderer doc={doc} side={side} viewState={sideView} assets={assets} scale={scale} />
           </Canvas>
         </View>
       </Animated.View>

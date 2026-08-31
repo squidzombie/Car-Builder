@@ -39,3 +39,7 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# local device-test artifacts (signed for one device / session-specific)
+*.ipa
+expo-qr.png

@@ -137,6 +137,9 @@ export function demoCard(now = new Date().toISOString()): CardDocument {
           name: 'Background',
           type: 'fill',
           fill: { paint: { color: '#12355b' } },
+          // deliberately subtle: shows a finish as a quiet full-bleed overlay,
+          // the way real card backs shimmer without fighting the text
+          finish: makeFinish('geometric', 'mosaic', { intensity: 0.35 }),
         }),
         layer({
           id: 'back-title',

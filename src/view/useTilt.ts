@@ -4,11 +4,11 @@ import { DeviceMotion } from 'expo-sensors'
 import type { ViewState } from '../model/types'
 import { lightFromTilt } from '../model/types'
 
-export type TiltMode = 'gyro' | 'drag'
-
 const DEAD_ZONE = 0.03
 const SMOOTHING = 0.18 // lerp factor per frame
 const GYRO_RANGE = 0.6 // radians of device rotation mapped to full tilt
+const DRAG_RANGE = 120 // px of finger travel mapped to full tilt
+const DRAG_SLOP = 8 // px of movement before a touch counts as a drag, not a tap
 
 function applyDeadZone(v: number): number {
   if (Math.abs(v) < DEAD_ZONE) return 0
@@ -18,14 +18,21 @@ function applyDeadZone(v: number): number {
 const clamp = (v: number) => Math.max(-1, Math.min(1, v))
 
 /**
- * Tilt input (CLAUDE.md §7): gyroscope by default with dead zone + smoothing,
- * drag fallback, toggleable. Returns a full ViewState (light derived from tilt).
+ * Tilt input (CLAUDE.md §7): gyroscope and finger drag are both always live —
+ * a drag takes over while the finger is down and hands back to the gyro on
+ * release. Returns a full ViewState (light derived from tilt).
+ *
+ * Spread `panHandlers` on a view that CONTAINS the card's tap target: the
+ * responder captures the touch only once it moves past DRAG_SLOP, so taps
+ * still reach the card (flip) while drags never trigger it.
  */
-export function useTilt(initialMode: TiltMode = 'gyro') {
-  const [mode, setMode] = useState<TiltMode>(initialMode)
+export function useTilt() {
   const [view, setView] = useState<ViewState>({ tiltX: 0, tiltY: 0, lightX: 0.5, lightY: 0.35 })
   const target = useRef({ x: 0, y: 0 })
   const current = useRef({ x: 0, y: 0 })
+  const gyroTarget = useRef({ x: 0, y: 0 })
+  const dragging = useRef(false)
+  const grabbed = useRef({ x: 0, y: 0 })
   const baseline = useRef<{ beta: number; gamma: number } | null>(null)
 
   // smoothing loop
@@ -46,10 +53,8 @@ export function useTilt(initialMode: TiltMode = 'gyro') {
     return () => cancelAnimationFrame(raf)
   }, [])
 
-  // gyro input
+  // gyro input — keeps updating during a drag so release hands back smoothly
   useEffect(() => {
-    if (mode !== 'gyro') return
-    baseline.current = null
     DeviceMotion.setUpdateInterval(33)
     const sub = DeviceMotion.addListener((m) => {
       const rot = m.rotation
@@ -59,26 +64,40 @@ export function useTilt(initialMode: TiltMode = 'gyro') {
       if (!baseline.current) baseline.current = { beta: rot.beta, gamma: rot.gamma }
       const dx = (rot.gamma - baseline.current.gamma) / GYRO_RANGE
       const dy = (rot.beta - baseline.current.beta) / GYRO_RANGE
-      target.current = { x: clamp(applyDeadZone(dx)), y: clamp(applyDeadZone(dy)) }
+      gyroTarget.current = { x: clamp(applyDeadZone(dx)), y: clamp(applyDeadZone(dy)) }
+      if (!dragging.current) target.current = gyroTarget.current
     })
     return () => sub.remove()
-  }, [mode])
+  }, [])
 
   const panResponder = useMemo(
     () =>
       PanResponder.create({
-        onStartShouldSetPanResponder: () => mode === 'drag',
-        onMoveShouldSetPanResponder: (_e, g) =>
-          mode === 'drag' && (Math.abs(g.dx) > 4 || Math.abs(g.dy) > 4),
+        // capture: steal the touch from the card's Pressable once it is
+        // clearly a drag, so the flip only ever fires on a genuine tap
+        onMoveShouldSetPanResponderCapture: (_e, g) =>
+          Math.abs(g.dx) > DRAG_SLOP || Math.abs(g.dy) > DRAG_SLOP,
+        onPanResponderGrant: () => {
+          dragging.current = true
+          grabbed.current = { ...current.current }
+        },
         onPanResponderMove: (_e, g) => {
-          target.current = { x: clamp(g.dx / 120), y: clamp(g.dy / 120) }
+          target.current = {
+            x: clamp(grabbed.current.x + g.dx / DRAG_RANGE),
+            y: clamp(grabbed.current.y + g.dy / DRAG_RANGE),
+          }
         },
         onPanResponderRelease: () => {
-          target.current = { x: 0, y: 0 }
+          dragging.current = false
+          target.current = gyroTarget.current
+        },
+        onPanResponderTerminate: () => {
+          dragging.current = false
+          target.current = gyroTarget.current
         },
       }),
-    [mode],
+    [],
   )
 
-  return { view, mode, setMode, panHandlers: panResponder.panHandlers }
+  return { view, panHandlers: panResponder.panHandlers }
 }
