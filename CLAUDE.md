@@ -31,6 +31,7 @@ type CardDocument = {
   size: { w: number; h: number }      // px at 300dpi; default 2.5in x 3.5in = 750 x 1050
   cornerRadius: number
   palette: Palette
+  shapes?: Shape[]                    // custom shapes used by this card; travel with it
   front: Side
   back: Side
   meta: { title?: string; templateId?: string; createdAt: string; updatedAt: string }
@@ -53,7 +54,7 @@ type Layer = {
   fill?: { color: Color | Gradient }
   image?: { assetId: string; cutout?: 'none' | 'subject' | 'manual' }
   shape?: { shapeId: string; fill: Color | Gradient; stroke?: Stroke }
-  path?: { points: Point[]; stroke: Stroke }         // free draw
+  path?: { strokes: { points: Point[] }[]; stroke: Stroke }  // free draw; a session's strokes share one layer + style
   stamp?: { shapeId: string; instances: StampInstance[]; fill: Color | Gradient }
   text?: { content: string; font: string; size: number; color: Color; align: 'l' | 'c' | 'r' }
 }

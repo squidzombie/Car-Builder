@@ -153,6 +153,32 @@ describe('editor store', () => {
     expect(deserializeCard(serializeCard(doc))).toEqual(doc)
   })
 
+  test('multi-stroke paths and custom shapes survive the round-trip', () => {
+    const store = freshStore()
+    store.getState().apply((doc) => {
+      doc.shapes = [{ id: 'c1', name: '8-star', path: 'M0 0 L1 0 L1 1 Z', builtIn: false }]
+      doc.front.layers.push({
+        id: 'p1',
+        name: 'Drawing',
+        type: 'path',
+        transform: { x: 0, y: 0, rotation: 0, scaleX: 1, scaleY: 1 },
+        opacity: 1,
+        blendMode: 'srcOver',
+        locked: false,
+        visible: true,
+        path: {
+          strokes: [
+            { points: [{ x: 1, y: 2 }, { x: 3, y: 4 }] },
+            { points: [{ x: 5, y: 6 }] },
+          ],
+          stroke: { color: '#ffffff', width: 14 },
+        },
+      })
+    })
+    const doc = store.getState().doc
+    expect(deserializeCard(serializeCard(doc))).toEqual(doc)
+  })
+
   test('loadPalette appends without duplicates, as one undo step', () => {
     const store = freshStore()
     store.getState().pinColor('#111111')

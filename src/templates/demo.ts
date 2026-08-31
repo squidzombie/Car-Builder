@@ -90,11 +90,15 @@ export function demoCard(now = new Date().toISOString()): CardDocument {
           name: 'Swoosh',
           type: 'path',
           path: {
-            points: [
-              { x: 70, y: 700 },
-              { x: 240, y: 660 },
-              { x: 470, y: 680 },
-              { x: 680, y: 640 },
+            strokes: [
+              {
+                points: [
+                  { x: 70, y: 700 },
+                  { x: 240, y: 660 },
+                  { x: 470, y: 680 },
+                  { x: 680, y: 640 },
+                ],
+              },
             ],
             stroke: { color: '#2ec4b6', width: 14 },
           },

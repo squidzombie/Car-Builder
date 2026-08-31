@@ -1,6 +1,8 @@
 // Core data model. See CLAUDE.md §3 (data model) and §5 (finish system).
 // Everything here serializes to JSON; image assets are referenced by assetId.
 
+import type { Shape } from './shapeTypes'
+
 export type Color = string // #RRGGBB or #RRGGBBAA
 
 export type Gradient = {
@@ -75,7 +77,8 @@ export type Layer = {
   fill?: { paint: Paint }
   image?: { assetId: string; cutout: 'none' | 'subject' | 'manual'; w: number; h: number }
   shape?: { shapeId: string; paint: Paint; stroke?: Stroke; w: number; h: number }
-  path?: { points: Point[]; stroke: Stroke }
+  // free draw: a draw session's strokes accumulate here, sharing one style
+  path?: { strokes: { points: Point[] }[]; stroke: Stroke }
   stamp?: { shapeId: string; instances: StampInstance[]; paint: Paint; baseSize: number }
   text?: {
     content: string
@@ -99,6 +102,8 @@ export type CardDocument = {
   size: { w: number; h: number } // px at 300dpi; default 750 x 1050
   cornerRadius: number
   palette: Palette
+  /** custom shapes used by this card (§4 polygon builder) — travel with it */
+  shapes?: Shape[]
   front: Side
   back: Side
   meta: {

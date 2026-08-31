@@ -3,26 +3,39 @@ import { PanResponder, Pressable, StyleSheet, Text, View, useWindowDimensions } 
 import { Canvas, Group, Skia, useCanvasRef } from '@shopify/react-native-skia'
 import { CardRenderer } from '../renderer/CardRenderer'
 import { defaultViewState } from '../model/types'
-import type { Color } from '../model/types'
+import type { Color, Layer, Point } from '../model/types'
 import { rgbaToHex } from '../model/color'
+import { BUILTIN_SHAPES } from '../model/shapes'
 import { useEditor } from '../state/useEditor'
-import { findLayer } from '../state/editorStore'
-import { hitTest, layerBounds } from './bounds'
-import { shapeContains } from './shapeHit'
+import { findLayer, makePathLayer, makeStampLayer } from '../state/editorStore'
+import { hitTest, layerBounds, toLocal } from './bounds'
+import { makeShapeContains } from './shapeHit'
 import { applyPinch, beginPinch, pinchGeometry, type PinchStart } from './transformGesture'
+import {
+  jitterInstance,
+  mirrorRotation,
+  polylineNear,
+  stampRotation,
+  symmetryVariants,
+  type SymmetryVariant,
+} from './tools'
 import { layerColor, setLayerColor } from './layerColor'
 import { ColorPicker } from './ColorPicker'
 import { LayerPanel } from './LayerPanel'
+import { ShapeBuilder } from './ShapeBuilder'
+import { ToolBar, type DrawSettings, type EditorMode, type StampSettings } from './ToolBar'
 
-// Editor core screen (M2, CLAUDE.md §4): card canvas with tap-to-select,
-// one-finger drag-to-move, two-finger pinch/twist on the SELECTION —
-// or, with nothing selected, two-finger zoom + pan of the CANVAS for
-// fine placement work (one finger pans while zoomed; ⤢ chip resets).
+// Editor screen (M2 core + M3 tools, CLAUDE.md §4).
+// Select mode: tap-to-select, one-finger drag, two-finger pinch/twist on
+// the selection — or, with nothing selected, two-finger canvas zoom/pan.
+// Draw/stamp modes: one finger is the tool, two fingers always zoom/pan
+// (an in-flight stroke cancels cleanly via undo).
 
 const TAP_SLOP = 8
 const MAX_ZOOM = 8
 
 type CanvasView = { scale: number; x: number; y: number }
+type PickerTarget = 'layer' | 'draw' | 'stamp'
 
 export function EditorScreen({ onPreview }: { onPreview: () => void }) {
   const { width } = useWindowDimensions()
@@ -59,36 +72,84 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
 
   const canvasRef = useCanvasRef()
 
+  // ---- tools (M3) ----
+  const [mode, setModeState] = useState<EditorMode>('select')
+  const [draw, setDraw] = useState<DrawSettings>({
+    width: 14,
+    color: '#ffffff',
+    eraser: false,
+    symmetry: 'off',
+  })
+  const [stamp, setStamp] = useState<StampSettings>({
+    shapeId: 'star5',
+    size: 84,
+    rotMode: 'fixed',
+    jitter: false,
+    color: '#f1c40f',
+    symmetry: 'off',
+  })
+  const toolRef = useRef({ mode, draw, stamp })
+  toolRef.current = { mode, draw, stamp }
+  const [builderOpen, setBuilderOpen] = useState(false)
+
+  const allShapes = useMemo(() => [...BUILTIN_SHAPES, ...(doc.shapes ?? [])], [doc.shapes])
+
   // ---- color picker + eyedropper ----
   const [pickerOpen, setPickerOpen] = useState(false)
+  const [pickerTarget, setPickerTarget] = useState<PickerTarget>('layer')
+  const pickerTargetRef = useRef(pickerTarget)
+  pickerTargetRef.current = pickerTarget
   const [eyedropping, setEyedropping] = useState(false)
   const eyedroppingRef = useRef(false)
   eyedroppingRef.current = eyedropping
   const pickerOpenColor = useRef<Color | null>(null)
 
+  const pickerColor =
+    pickerTarget === 'layer' ? selectedColor : pickerTarget === 'draw' ? draw.color : stamp.color
+  const pickerColorRef = useRef(pickerColor)
+  pickerColorRef.current = pickerColor
+
+  const setMode = (m: EditorMode) => {
+    setModeState(m)
+    setPickerOpen(false)
+    setEyedropping(false)
+  }
+
   useEffect(() => {
-    // selection vanished (undo, delete) while the picker was up
-    if (pickerOpen && (!selected || selectedColor === null)) {
+    // layer target's selection vanished (undo, delete) while the picker was up
+    if (pickerOpen && pickerTarget === 'layer' && (!selected || selectedColor === null)) {
       setPickerOpen(false)
       setEyedropping(false)
     }
-  }, [pickerOpen, selected, selectedColor])
+  }, [pickerOpen, pickerTarget, selected, selectedColor])
 
   const applyColor = useCallback((color: Color, transient: boolean) => {
+    const target = pickerTargetRef.current
+    if (target === 'draw') {
+      setDraw((d) => ({ ...d, color, eraser: false }))
+      return
+    }
+    if (target === 'stamp') {
+      setStamp((st) => ({ ...st, color }))
+      return
+    }
     const s = useEditor.getState()
     if (!s.selectedId) return
     s.updateLayer(s.selectedId, (l) => setLayerColor(l, color), { transient })
   }, [])
 
-  const openPicker = () => {
-    pickerOpenColor.current = selectedColor
+  const openPicker = (target: PickerTarget) => {
+    setPickerTarget(target)
+    pickerOpenColor.current =
+      target === 'layer' ? selectedColor : target === 'draw' ? toolRef.current.draw.color : toolRef.current.stamp.color
     setPickerOpen(true)
   }
 
   const closePicker = () => {
-    const s = useEditor.getState()
-    const current = s.selectedId ? layerColor(findLayer(s.doc, s.side, s.selectedId)!) : null
-    if (current && current !== pickerOpenColor.current) s.pushRecentColor(current)
+    const current = pickerColorRef.current
+    if (current && current !== pickerOpenColor.current) {
+      useEditor.getState().pushRecentColor(current)
+    }
     setPickerOpen(false)
     setEyedropping(false)
   }
@@ -110,7 +171,7 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
   const drag = useRef<{ id: string; startX: number; startY: number } | null>(null)
   const pinchStart = useRef<PinchStart | null>(null)
   const pinchLayerId = useRef<string | null>(null)
-  const gestureStarted = useRef(false) // beginGesture called this session
+  const gestureStarted = useRef(false)
   const sessionTransformed = useRef(false)
   const canvasPinch = useRef<{
     dist: number
@@ -120,6 +181,20 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
     originY: number
   } | null>(null)
   const panFrom = useRef<CanvasView | null>(null)
+  const drawSession = useRef<{
+    layerId: string
+    base: number
+    variants: SymmetryVariant[]
+    last: Point
+    count: number
+  } | null>(null)
+  const stampSession = useRef<{
+    layerId: string
+    variants: SymmetryVariant[]
+    last: Point
+    baseSize: number
+  } | null>(null)
+  const eraseSession = useRef<{ layerId: string; changed: boolean } | null>(null)
 
   const panResponder = useMemo(() => {
     const origin = (v: CanvasView) => {
@@ -129,6 +204,10 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
         x: (area.w - docW * t) / 2 + v.x,
         y: (area.h - docH * t) / 2 + v.y,
       }
+    }
+    const docPoint = (locX: number, locY: number): Point => {
+      const o = origin(viewRef.current)
+      return { x: (locX - o.x) / o.t, y: (locY - o.y) / o.t }
     }
     /** Clamp scale and offsets so the card never gets lost off-screen. */
     const clampView = (scale: number, offX: number, offY: number): CanvasView => {
@@ -143,6 +222,180 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
       return { scale: s, x: ox - cX, y: oy - cY }
     }
 
+    // ---- draw tool ----
+    const startDraw = (p: Point) => {
+      const s = useEditor.getState()
+      const t = toolRef.current.draw
+      if (t.eraser) {
+        const sel = s.selectedId ? findLayer(s.doc, s.side, s.selectedId) : undefined
+        if (!sel || sel.type !== 'path' || sel.locked) return
+        s.beginGesture()
+        gestureStarted.current = true
+        eraseSession.current = { layerId: sel.id, changed: false }
+        eraseAt(p)
+        return
+      }
+      const variants = symmetryVariants(t.symmetry, docW, docH)
+      const sel = s.selectedId ? findLayer(s.doc, s.side, s.selectedId) : undefined
+      s.beginGesture()
+      gestureStarted.current = true
+      let layerId: string
+      let strokeBase: number
+      if (
+        sel?.type === 'path' &&
+        !sel.locked &&
+        sel.path!.stroke.color === t.color &&
+        sel.path!.stroke.width === t.width
+      ) {
+        layerId = sel.id
+        strokeBase = sel.path!.strokes.length
+        s.applyTransient((d) => {
+          const l = findLayer(d, s.side, layerId)
+          if (l?.path) variants.forEach((v) => l.path!.strokes.push({ points: [v.map(p)] }))
+        })
+      } else {
+        const layer: Layer = makePathLayer({ color: t.color, width: t.width })
+        layer.path!.strokes = variants.map((v) => ({ points: [v.map(p)] }))
+        layerId = layer.id
+        strokeBase = 0
+        s.applyTransient((d) => {
+          d[s.side].layers.push(layer)
+        })
+        s.select(layerId)
+      }
+      drawSession.current = { layerId, base: strokeBase, variants, last: p, count: 1 }
+    }
+
+    const moveDraw = (p: Point) => {
+      const ds = drawSession.current
+      if (!ds) return
+      if (Math.hypot(p.x - ds.last.x, p.y - ds.last.y) < 3) return
+      ds.last = p
+      ds.count++
+      const s = useEditor.getState()
+      s.applyTransient((d) => {
+        const l = findLayer(d, s.side, ds.layerId)
+        if (!l?.path) return
+        ds.variants.forEach((v, k) => l.path!.strokes[ds.base + k]?.points.push(v.map(p)))
+      })
+    }
+
+    const endDraw = () => {
+      const ds = drawSession.current
+      if (!ds) return
+      drawSession.current = null
+      if (ds.count > 1) return
+      // a tap: extend the single point so the round cap renders as a dot
+      const s = useEditor.getState()
+      s.applyTransient((d) => {
+        const l = findLayer(d, s.side, ds.layerId)
+        ds.variants.forEach((_v, k) => {
+          const st = l?.path?.strokes[ds.base + k]
+          if (st && st.points.length === 1) {
+            st.points.push({ x: st.points[0].x + 0.1, y: st.points[0].y })
+          }
+        })
+      })
+    }
+
+    const eraseAt = (p: Point) => {
+      const es = eraseSession.current
+      if (!es) return
+      const s = useEditor.getState()
+      s.applyTransient((d) => {
+        const l = findLayer(d, s.side, es.layerId)
+        if (!l?.path) return
+        const lp = toLocal(l, p.x, p.y)
+        if (!lp) return
+        const reach = l.path.stroke.width / 2 + 16
+        const before = l.path.strokes.length
+        l.path.strokes = l.path.strokes.filter((st) => !polylineNear(st.points, lp, reach))
+        if (l.path.strokes.length !== before) es.changed = true
+      })
+    }
+
+    // ---- stamp tool ----
+    const placeStamp = (p: Point, angleDeg: number) => {
+      const ss = stampSession.current
+      if (!ss) return
+      const t = toolRef.current.stamp
+      const rot = stampRotation(t.rotMode, angleDeg)
+      const j = t.jitter ? jitterInstance(p, t.size) : { x: p.x, y: p.y, scaleMul: 1 }
+      const s = useEditor.getState()
+      s.applyTransient((d) => {
+        const l = findLayer(d, s.side, ss.layerId)
+        if (!l?.stamp) return
+        for (const v of ss.variants) {
+          const mp = v.map({ x: j.x, y: j.y })
+          l.stamp.instances.push({
+            x: mp.x,
+            y: mp.y,
+            rotation: mirrorRotation(rot, v.flips),
+            scale: (t.size / ss.baseSize) * j.scaleMul,
+          })
+        }
+      })
+    }
+
+    const startStamp = (p: Point) => {
+      const s = useEditor.getState()
+      const t = toolRef.current.stamp
+      const variants = symmetryVariants(t.symmetry, docW, docH)
+      const sel = s.selectedId ? findLayer(s.doc, s.side, s.selectedId) : undefined
+      s.beginGesture()
+      gestureStarted.current = true
+      let layerId: string
+      let baseSize: number
+      if (
+        sel?.type === 'stamp' &&
+        !sel.locked &&
+        sel.stamp!.shapeId === t.shapeId &&
+        'color' in sel.stamp!.paint &&
+        sel.stamp!.paint.color === t.color
+      ) {
+        layerId = sel.id
+        baseSize = sel.stamp!.baseSize
+      } else {
+        const layer = makeStampLayer(t.shapeId, { color: t.color }, t.size)
+        layerId = layer.id
+        baseSize = t.size
+        s.applyTransient((d) => {
+          d[s.side].layers.push(layer)
+        })
+        s.select(layerId)
+      }
+      stampSession.current = { layerId, variants, last: p, baseSize }
+      placeStamp(p, 0)
+    }
+
+    const moveStamp = (p: Point) => {
+      const ss = stampSession.current
+      if (!ss) return
+      const t = toolRef.current.stamp
+      const spacing = Math.max(24, t.size * 1.15)
+      const dx = p.x - ss.last.x
+      const dy = p.y - ss.last.y
+      if (Math.hypot(dx, dy) < spacing) return
+      const angle = (Math.atan2(dy, dx) * 180) / Math.PI
+      ss.last = p
+      placeStamp(p, angle)
+    }
+
+    /** A second finger landed mid-tool-stroke: revert it and hand over to zoom. */
+    const cancelToolSession = () => {
+      const active =
+        drawSession.current !== null ||
+        stampSession.current !== null ||
+        (eraseSession.current !== null && eraseSession.current.changed)
+      if (drawSession.current || stampSession.current || eraseSession.current) {
+        if (active && gestureStarted.current) useEditor.getState().undo()
+        drawSession.current = null
+        stampSession.current = null
+        eraseSession.current = null
+        gestureStarted.current = false
+      }
+    }
+
     return PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onPanResponderGrant: (e) => {
@@ -152,16 +405,26 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
         gestureStarted.current = false
         sessionTransformed.current = false
         drag.current = null
+        drawSession.current = null
+        stampSession.current = null
+        eraseSession.current = null
         panFrom.current = { ...viewRef.current }
         if (eyedroppingRef.current) return
+        const p = docPoint(e.nativeEvent.locationX, e.nativeEvent.locationY)
+        const tool = toolRef.current
+        if (tool.mode === 'draw') {
+          startDraw(p)
+          return
+        }
+        if (tool.mode === 'stamp') {
+          startStamp(p)
+          return
+        }
         const s = useEditor.getState()
-        const o = origin(viewRef.current)
-        const x = (e.nativeEvent.locationX - o.x) / o.t
-        const y = (e.nativeEvent.locationY - o.y) / o.t
         const sel = s.selectedId ? findLayer(s.doc, s.side, s.selectedId) : undefined
         if (sel && !sel.locked) {
           const b = layerBounds(sel, s.doc)
-          if (x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h) {
+          if (p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h) {
             drag.current = { id: sel.id, startX: sel.transform.x, startY: sel.transform.y }
             s.beginGesture()
             gestureStarted.current = true
@@ -173,11 +436,12 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
         const touches = e.nativeEvent.touches
 
         if (touches.length >= 2) {
+          cancelToolSession()
           const o = origin(viewRef.current)
           const sel = s.selectedId ? findLayer(s.doc, s.side, s.selectedId) : undefined
 
-          // selection: two fingers transform the layer
-          if (sel && !sel.locked) {
+          // select mode with a selection: two fingers transform the layer
+          if (toolRef.current.mode === 'select' && sel && !sel.locked) {
             const a = {
               x: (touches[0].locationX - o.x) / o.t,
               y: (touches[0].locationY - o.y) / o.t,
@@ -202,7 +466,7 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
             return
           }
 
-          // no selection: two fingers zoom/pan the canvas
+          // otherwise: two fingers zoom/pan the canvas
           const geom = pinchGeometry(
             { x: touches[0].locationX, y: touches[0].locationY },
             { x: touches[1].locationX, y: touches[1].locationY },
@@ -223,8 +487,6 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
           const newScale = Math.max(1, Math.min(MAX_ZOOM, cp.scale * (geom.dist / cp.dist)))
           const t0 = base * cp.scale
           const newT = base * newScale
-          // keep the doc point that was under the start midpoint under the
-          // current midpoint
           const docMidX = (cp.mid.x - cp.originX) / t0
           const docMidY = (cp.mid.y - cp.originY) / t0
           const desiredOriginX = geom.mid.x - docMidX * newT
@@ -237,6 +499,19 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
 
         // a finger lifted mid-pinch: freeze until the session ends
         if (pinchStart.current || canvasPinch.current) return
+
+        if (drawSession.current) {
+          moveDraw(docPoint(e.nativeEvent.locationX, e.nativeEvent.locationY))
+          return
+        }
+        if (eraseSession.current) {
+          eraseAt(docPoint(e.nativeEvent.locationX, e.nativeEvent.locationY))
+          return
+        }
+        if (stampSession.current) {
+          moveStamp(docPoint(e.nativeEvent.locationX, e.nativeEvent.locationY))
+          return
+        }
 
         if (drag.current) {
           if (Math.abs(g.dx) <= TAP_SLOP && Math.abs(g.dy) <= TAP_SLOP) return
@@ -257,7 +532,9 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
         // one finger off the selection: pan the canvas while zoomed
         if (viewRef.current.scale > 1 && panFrom.current) {
           if (Math.abs(g.dx) <= TAP_SLOP && Math.abs(g.dy) <= TAP_SLOP) return
-          setView(clampView(panFrom.current.scale, panFrom.current.x + g.dx, panFrom.current.y + g.dy))
+          setView(
+            clampView(panFrom.current.scale, panFrom.current.x + g.dx, panFrom.current.y + g.dy),
+          )
         }
       },
       onPanResponderRelease: (e, g) => {
@@ -267,6 +544,15 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
         pinchLayerId.current = null
         canvasPinch.current = null
         panFrom.current = null
+        if (drawSession.current) {
+          endDraw()
+          return
+        }
+        if (stampSession.current || eraseSession.current) {
+          stampSession.current = null
+          eraseSession.current = null
+          return
+        }
         if (pinched || sessionTransformed.current) return
         if (Math.abs(g.dx) > TAP_SLOP || Math.abs(g.dy) > TAP_SLOP) return
         // a tap
@@ -277,8 +563,8 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
           return
         }
         const s = useEditor.getState()
-        const o = origin(viewRef.current)
-        const hit = hitTest(s.doc, s.side, (vx - o.x) / o.t, (vy - o.y) / o.t, { shapeContains })
+        const p = docPoint(vx, vy)
+        const hit = hitTest(s.doc, s.side, p.x, p.y, { shapeContains: makeShapeContains(s.doc) })
         s.select(hit ? hit.id : null)
       },
       onPanResponderTerminate: () => {
@@ -287,6 +573,9 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
         pinchLayerId.current = null
         canvasPinch.current = null
         panFrom.current = null
+        drawSession.current = null
+        stampSession.current = null
+        eraseSession.current = null
       },
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -347,7 +636,7 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
                 <CardRenderer doc={doc} side={side} viewState={defaultViewState()} scale={total} />
               </Group>
             </Canvas>
-            {selectionBox && !eyedropping ? (
+            {selectionBox && !eyedropping && mode === 'select' ? (
               <View
                 pointerEvents="none"
                 style={[
@@ -374,7 +663,20 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
         ) : null}
       </View>
 
-      {selected ? (
+      <ToolBar
+        mode={mode}
+        onMode={setMode}
+        draw={draw}
+        onDraw={(patch) => setDraw((d) => ({ ...d, ...patch }))}
+        stamp={stamp}
+        onStamp={(patch) => setStamp((st) => ({ ...st, ...patch }))}
+        shapes={allShapes}
+        onOpenColor={openPicker}
+        onNewLayer={() => useEditor.getState().select(null)}
+        onOpenBuilder={() => setBuilderOpen(true)}
+      />
+
+      {selected && mode === 'select' ? (
         <View style={styles.propsBar}>
           <Text style={styles.propsName} numberOfLines={1}>
             {selected.name}
@@ -384,7 +686,7 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
             {(((Math.abs(selected.transform.scaleX) + Math.abs(selected.transform.scaleY)) / 2)).toFixed(2)}
           </Text>
           {selectedColor ? (
-            <Pressable style={styles.colorChipBack} hitSlop={6} onPress={openPicker}>
+            <Pressable style={styles.colorChipBack} hitSlop={6} onPress={() => openPicker('layer')}>
               <View style={[styles.colorChip, { backgroundColor: selectedColor }]} />
             </Pressable>
           ) : null}
@@ -402,13 +704,26 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
         </View>
       ) : null}
 
-      {pickerOpen && !eyedropping && selectedColor ? (
+      {pickerOpen && !eyedropping && pickerColor ? (
         <ColorPicker
-          value={selectedColor}
+          value={pickerColor}
           onChange={applyColor}
-          onGestureStart={() => useEditor.getState().beginGesture()}
+          onGestureStart={() => {
+            if (pickerTargetRef.current === 'layer') useEditor.getState().beginGesture()
+          }}
           onClose={closePicker}
           onEyedropper={() => setEyedropping(true)}
+        />
+      ) : null}
+
+      {builderOpen ? (
+        <ShapeBuilder
+          onClose={() => setBuilderOpen(false)}
+          onSaved={(shapeId) => {
+            setBuilderOpen(false)
+            setModeState('stamp')
+            setStamp((st) => ({ ...st, shapeId }))
+          }}
         />
       ) : null}
     </View>

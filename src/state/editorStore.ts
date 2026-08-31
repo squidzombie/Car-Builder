@@ -278,6 +278,36 @@ export function makeFillLayer(paint: Paint): Layer {
   }
 }
 
+/** Empty free-draw layer with the given stroke style (M3). */
+export function makePathLayer(stroke: { color: Color; width: number }): Layer {
+  return {
+    id: newLayerId('path'),
+    name: 'Drawing',
+    type: 'path',
+    transform: defaultTransform(),
+    opacity: 1,
+    blendMode: 'srcOver',
+    locked: false,
+    visible: true,
+    path: { strokes: [], stroke: { ...stroke } },
+  }
+}
+
+/** Empty stamp layer for the given shape (M3). */
+export function makeStampLayer(shapeId: string, paint: Paint, baseSize: number): Layer {
+  return {
+    id: newLayerId('stamp'),
+    name: 'Stamps',
+    type: 'stamp',
+    transform: defaultTransform(),
+    opacity: 1,
+    blendMode: 'srcOver',
+    locked: false,
+    visible: true,
+    stamp: { shapeId, paint, instances: [], baseSize },
+  }
+}
+
 /** Default shape layer, centered on the card (M2). */
 export function makeShapeLayer(shapeId: string, paint: Paint, size = 320): Layer {
   return {

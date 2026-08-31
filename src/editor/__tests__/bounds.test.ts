@@ -133,9 +133,13 @@ describe('hitTest', () => {
       visible: true,
       path: {
         stroke: { color: '#fff', width: 20 },
-        points: [
-          { x: 100, y: 100 },
-          { x: 700, y: 700 },
+        strokes: [
+          {
+            points: [
+              { x: 100, y: 100 },
+              { x: 700, y: 700 },
+            ],
+          },
         ],
       },
     }

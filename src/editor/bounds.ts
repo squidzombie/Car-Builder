@@ -23,17 +23,19 @@ function localBounds(layer: Layer, doc: CardDocument): Box {
     }
     case 'path': {
       const p = layer.path!
-      if (p.points.length === 0) return { x: 0, y: 0, w: 0, h: 0 }
       let minX = Infinity
       let minY = Infinity
       let maxX = -Infinity
       let maxY = -Infinity
-      for (const pt of p.points) {
-        minX = Math.min(minX, pt.x)
-        minY = Math.min(minY, pt.y)
-        maxX = Math.max(maxX, pt.x)
-        maxY = Math.max(maxY, pt.y)
+      for (const stroke of p.strokes) {
+        for (const pt of stroke.points) {
+          minX = Math.min(minX, pt.x)
+          minY = Math.min(minY, pt.y)
+          maxX = Math.max(maxX, pt.x)
+          maxY = Math.max(maxY, pt.y)
+        }
       }
+      if (minX === Infinity) return { x: 0, y: 0, w: 0, h: 0 }
       const pad = p.stroke.width // stroke half-width + Catmull-Rom overshoot
       return { x: minX - pad, y: minY - pad, w: maxX - minX + 2 * pad, h: maxY - minY + 2 * pad }
     }
@@ -177,15 +179,19 @@ function hitsLayer(layer: Layer, x: number, y: number, opts?: HitTestOptions): b
     case 'path': {
       const pl = layer.path!
       const p = toLocal(layer, x, y)
-      if (!p || pl.points.length === 0) return false
+      if (!p) return false
       const reach = pl.stroke.width / 2 + HIT_SLOP
-      if (pl.points.length === 1) {
-        return Math.hypot(p.x - pl.points[0].x, p.y - pl.points[0].y) <= reach
-      }
-      for (let i = 0; i < pl.points.length - 1; i++) {
-        const a = pl.points[i]
-        const b = pl.points[i + 1]
-        if (distToSegment(p.x, p.y, a.x, a.y, b.x, b.y) <= reach) return true
+      for (const stroke of pl.strokes) {
+        const pts = stroke.points
+        if (pts.length === 0) continue
+        if (pts.length === 1) {
+          if (Math.hypot(p.x - pts[0].x, p.y - pts[0].y) <= reach) return true
+          continue
+        }
+        for (let i = 0; i < pts.length - 1; i++) {
+          if (distToSegment(p.x, p.y, pts[i].x, pts[i].y, pts[i + 1].x, pts[i + 1].y) <= reach)
+            return true
+        }
       }
       return false
     }

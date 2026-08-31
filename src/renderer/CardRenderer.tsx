@@ -96,7 +96,9 @@ function LayerNode({
     <Group layer={layerPaint}>
       {content}
       {layer.finish ? <FinishPass layer={layer} doc={doc} viewState={viewState} /> : null}
-      {layer.mask ? <MaskPass mask={layer.mask} w={w} h={h} assets={assets} /> : null}
+      {layer.mask ? (
+        <MaskPass mask={layer.mask} w={w} h={h} assets={assets} shapes={doc.shapes} />
+      ) : null}
     </Group>
   )
 }
@@ -123,11 +125,13 @@ function MaskPass({
   w,
   h,
   assets,
+  shapes,
 }: {
   mask: Mask
   w: number
   h: number
   assets?: Record<string, SkImage>
+  shapes?: CardDocument['shapes']
 }) {
   const p = mask.params
   if (mask.type === 'linear-fade') {
@@ -163,7 +167,7 @@ function MaskPass({
     )
   }
   if (mask.type === 'shape' && mask.assetId) {
-    const shape = getShape(mask.assetId)
+    const shape = getShape(mask.assetId, shapes)
     if (shape) {
       const path = shapePath(shape.path, p.x ?? 0, p.y ?? 0, p.w ?? w, p.h ?? h)
       if (path) return <Path path={path} color="#ffffff" blendMode="dstIn" />
@@ -228,7 +232,7 @@ function LayerContent({
     }
     case 'shape': {
       const s = layer.shape!
-      const shape = getShape(s.shapeId)
+      const shape = getShape(s.shapeId, doc.shapes)
       if (!shape) return null
       const path = shapePath(shape.path, 0, 0, s.w, s.h)
       if (!path) return null
@@ -251,21 +255,25 @@ function LayerContent({
     }
     case 'path': {
       const p = layer.path!
-      const path = strokePathFromPoints(p.points)
       return (
-        <Path
-          path={path}
-          style="stroke"
-          strokeWidth={p.stroke.width}
-          strokeCap="round"
-          strokeJoin="round"
-          color={p.stroke.color}
-        />
+        <>
+          {p.strokes.map((s, i) => (
+            <Path
+              key={i}
+              path={strokePathFromPoints(s.points)}
+              style="stroke"
+              strokeWidth={p.stroke.width}
+              strokeCap="round"
+              strokeJoin="round"
+              color={p.stroke.color}
+            />
+          ))}
+        </>
       )
     }
     case 'stamp': {
       const s = layer.stamp!
-      const shape = getShape(s.shapeId)
+      const shape = getShape(s.shapeId, doc.shapes)
       if (!shape) return null
       const base = Skia.Path.MakeFromSVGString(shape.path)
       if (!base) return null
