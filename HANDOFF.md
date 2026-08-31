@@ -1,4 +1,4 @@
-# Handoff — state of the project as of 2026-08-30
+# Handoff — state of the project as of 2026-08-31
 
 Context for Claude Code (or any developer) picking this up locally. The spec
 in `CLAUDE.md` is the source of truth for scope and build order; this file is
@@ -6,94 +6,88 @@ where the build actually stands.
 
 ## Where we are
 
-**M0/M1 are code-complete but NOT yet verified on a real phone.** Per
-CLAUDE.md §11, the milestone isn't done until it runs on a device and the
-holo feels right. That device test is the immediate next step — do not start
-M2 (editor core) until it has happened.
+**M0/M1 are DONE and device-verified.** The M0 checkpoint passed on the
+user's iPhone (2026-08-30): holo quality approved. The device test produced
+two fixes (drag-to-tilt coexists with gyro, back-face light mirroring) —
+committed in `acd8c1e`.
 
-Everything below was built in a cloud session and pushed to
-`claude/car-builder-handoff-zae22z` (two commits on top of the initial one).
-`main` is still empty except the original README — merge when the device
-checkpoint passes.
+**M2 (editor core) is in progress.** Working so far, all on branch
+`claude/car-builder-handoff-zae22z`:
 
-## What exists
+- Editor store (`src/state/editorStore.ts`): zustand+immer, snapshot
+  undo/redo (50 deep), gesture grouping (a whole drag = one undo step),
+  layer commands, palette pin/recent actions.
+- Editor screen (`src/editor/EditorScreen.tsx`): tap-to-select (hit-test in
+  `src/editor/bounds.ts`), one-finger drag-to-move, **two-finger
+  pinch-to-scale + twist-to-rotate** (pure math in
+  `src/editor/transformGesture.ts` — anchor-follows-midpoint model, scale
+  clamped 0.05..20), undo/redo, front/back switch, selection props bar
+  (name, rotation/scale readout, color chip).
+- Layer panel (`src/editor/LayerPanel.tsx`): select/reorder/rename/lock/
+  hide/duplicate/delete, add fill/shape layers.
+- **Color picker** (`src/editor/ColorPicker.tsx`, §6): hue ring +
+  SV square (Skia-drawn), alpha slider, hex input, pinned swatches
+  (long-press recent → pin, long-press pin → unpin), recents (pushed on
+  picker close when the color changed), **eyedropper** (samples real canvas
+  pixels via `makeImageSnapshot` of a 1×1 rect). Picker edits the layer's
+  "primary color" (`src/editor/layerColor.ts`); applying a solid replaces a
+  gradient paint — gradient editing is a later slice.
 
-- **Expo SDK 57 + TypeScript** scaffold. Deps pinned to Expo-compatible
-  versions (`@shopify/react-native-skia` 2.6.2, `expo-sensors`,
-  `react-native-reanimated` 4.5.1, `react-native-gesture-handler`,
-  `react-native-worklets`, `zustand`, `immer`).
-- `src/model/` — full `CardDocument`/`Layer`/`Finish`/`ViewState` types
-  (CLAUDE.md §3/§5), `serialize.ts` with a validating deserializer
-  (`CardParseError`), `shapes.ts` with all 14 built-in shapes as normalized
-  SVG paths plus `buildPolygonPath` (the §4 polygon builder), `color.ts`.
-- `src/finishes/` — SkSL for all five families in `*.sksl.ts` files
-  (spectrum, geometric, fluid, metallic, sparkle), shared helpers in
-  `common.sksl.ts` (palette band, specular, grain, noise), `presets.ts`
-  (every preset from the §5 table; params map to uniforms uP0..uP3,
-  documented at the top of each family file), `uniforms.ts` (pure uniform
-  builder, no Skia import), `index.ts` (effect compile + cache).
-- `src/renderer/CardRenderer.tsx` — pure function of doc + ViewState. All
-  six layer types; per-layer finish drawn `srcATop` inside an offscreen
-  layer group so it lands only on the layer's alpha; linear/radial/shape/
-  raster masks via `dstIn`; gradients; Catmull-Rom stroke smoothing in
-  `strokePath.ts`.
-- `src/view/useTilt.ts` — DeviceMotion-based gyro tilt with dead zone,
-  smoothing, and auto-baselining to the initial phone pose; drag fallback
-  via PanResponder; mode toggle. `TiltCard.tsx` — perspective tilt,
-  tap-to-flip (RN Animated spring), tilt-reactive shadow.
-- `src/templates/` — `blank.ts` and `demo.ts`. The demo card exercises all
-  six layer types and all five bold finishes front and back, and `App.tsx`
-  loads it through serialize→deserialize on purpose.
+## Verified
 
-## Verified (in the cloud, not on device)
+- `npm run typecheck` clean; `npm test` 41/41 (jest-expo, includes real
+  SkSL compilation through CanvasKit).
+- Preview and editor share one store; edits appear live in the tilt preview.
+- **Verified on the Android emulator (Pixel_7, Expo Go)**, including the
+  two-finger pinch+twist via a sendevent multitouch script
+  (`adb root` + type-B events on `/dev/input/event2`): select, drag,
+  pinch/rotate (props bar readout matches), color picker end to end
+  (wheel, alpha, hex, pin, recents-on-close, eyedropper sampling real
+  canvas pixels), full undo chain back to pristine.
+- Emulator findings fixed along the way: SweepGradient on a stroked circle
+  renders unreliably (ring is now 72 solid arc segments), and the editor
+  card is now fitted to the measured canvas-area height (it used to
+  overflow on top of the toolbar and steal its taps).
 
-- `npm run typecheck` (tsc --noEmit) clean.
-- `npm test` — 12 tests: JSON round-trip identity for blank + demo,
-  malformed-document rejection, shape-library invariants, and **all five
-  SkSL shaders compiled through real Skia** (CanvasKit in a node jest env).
+## Still open in M2
 
-## Immediate next step: device test (Windows host)
+- Drag-reorder of pinned swatches (§6 says drag; long-press flows exist).
+- Starter palettes (~30 team-color sets) — data-only, §6.
+- Canvas hit-testing is AABB-based, so a full-card frame shape (demo "Foil
+  border") shadows every canvas tap; layer-panel selection is the
+  workaround. Consider path-accurate hit testing for shape layers.
+- Possible polish: rotation snap at 0/90/180/270 during twist.
+- `SkPath.*` deprecation warnings from react-native-skia 2.6 (strokePath,
+  renderer, shapes): migrate to `Skia.PathBuilder` in a maintenance pass.
 
-1. `npx expo start` and open in **Expo Go** on the phone (same Wi-Fi).
-   Skia and expo-sensors are both bundled in Expo Go for SDK 57, so this
-   should work. If the LAN connection fails (Windows firewall), try
-   `npx expo start --tunnel`.
-2. If Expo Go crashes or renders a blank card: Android dev build
-   (`npx expo run:android`, needs Android Studio). iOS dev builds need a
-   Mac — use Expo Go or EAS Build for iPhone.
-3. Judge the M0 question: does the refractor/holo feel real when tilting?
-   Quality bar is simeydotme's "pokemon cards css" demo (§5). Tuning knobs:
-   preset params in `src/finishes/presets.ts`, shared look (specular shape,
-   grain level, palette sweep) in `src/finishes/common.sksl.ts`, gyro feel
-   (dead zone, smoothing, range) at the top of `src/view/useTilt.ts`.
+## User priorities to keep in mind
 
-## Known deviations / notes
+- The user is excited about finish presets + custom color palettes feeding
+  the holo effects ("select a set number of colors for a holo effect").
+  The engine already supports it (`Finish.paletteMode: 'custom'` +
+  `customColors`, renderer falls back to pinned palette) — make sure the
+  M4 finish UI exposes palette choice prominently, and §6 starter palettes
+  land with it.
 
-- Shader sources are `*.sksl.ts` (exported template strings), not raw
-  `.sksl` — Metro can't import raw text without a custom transformer. The
-  `.sksl` infix marks them as the shader files §12 means. Screenshot
-  requirement of §12 (docs/finishes/ at three tilts) is still unmet.
-- `expo install` was blocked by the cloud proxy; versions were taken from
-  `expo/bundledNativeModules.json`. On a normal network `npx expo install`
-  works fine for future deps.
-- Tilt updates flow through React state (~30Hz setState). Fine for the
-  checkpoint; if it stutters on device, the §5 perf bar (60fps mid-range
-  Android) likely means moving ViewState onto Reanimated shared values /
-  Skia uniforms without re-render. Don't optimize before it's proven
-  necessary on device.
-- Text layers use system fonts via `matchFont` (bold). Bundled display
-  fonts (§4) are still to do (M3).
-- `npm audit` reports ~10 moderate vulns in transitive dev/build deps —
-  known Expo-ecosystem noise. Do NOT run `npm audit fix --force`; it will
-  break pinned native-module versions.
-- Palette lookups in SkSL use a constant-index loop instead of dynamic
-  array indexing on purpose (GLES2 device compatibility).
+## After M2
 
-## After the device checkpoint
+- §12 screenshots for `docs/finishes/` at tilts (0,0), (1,0), (0,1) — still
+  unmet from M1.
+- Merge to `main` (PR from this branch) — was gated on the device
+  checkpoint, which has now passed.
+- M3: photo import + cutout + fade masks, free draw, stamping, mirror
+  symmetry, custom polygon builder, text editing UI.
 
-1. Fix whatever the phone reveals; tune shaders until the M0 answer is yes.
-2. Take the §12 screenshots for `docs/finishes/`.
-3. Merge to `main` (PR from this branch).
-4. Start M2: layer panel, selection + transform gestures, undo/redo command
-   stack (zustand + immer are already installed), color picker with
-   pins/recents/eyedropper.
+## Environment notes
+
+- Windows host. Android emulator available: AVD `Pixel_7`
+  (`%LOCALAPPDATA%/Android/Sdk` — adb/emulator NOT on the bash PATH, use
+  full paths). User's iPhone runs sideloaded Expo Go (see memory notes).
+- `npx expo start --tunnel` works around Windows firewall for phone tests;
+  `@expo/ngrok` is a devDependency.
+- Do NOT run `npm audit fix --force` (breaks pinned native-module versions).
+- Tilt updates flow through React state (~30Hz). Fine so far; §5 perf bar
+  (60fps mid-range Android) may eventually need shared values / direct
+  uniforms. Don't optimize before it's proven necessary on device.
+- Text layers use system fonts via `matchFont`; bundled display fonts (§4)
+  are M3.

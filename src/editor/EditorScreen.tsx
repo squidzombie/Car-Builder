@@ -1,15 +1,21 @@
-import React, { useMemo, useRef } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { PanResponder, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native'
-import { Canvas } from '@shopify/react-native-skia'
+import { Canvas, Skia, useCanvasRef } from '@shopify/react-native-skia'
 import { CardRenderer } from '../renderer/CardRenderer'
 import { defaultViewState } from '../model/types'
+import type { Color } from '../model/types'
+import { rgbaToHex } from '../model/color'
 import { useEditor } from '../state/useEditor'
+import { findLayer } from '../state/editorStore'
 import { hitTest, layerBounds } from './bounds'
+import { applyPinch, beginPinch, type PinchStart } from './transformGesture'
+import { layerColor, setLayerColor } from './layerColor'
+import { ColorPicker } from './ColorPicker'
 import { LayerPanel } from './LayerPanel'
 
-// Editor core screen (M2, CLAUDE.md §4): flat card canvas with tap-to-select
-// and drag-to-move, undo/redo, front/back switch, layer panel below.
-// TODO(M2): two-finger pinch-to-scale and twist-to-rotate on the selection.
+// Editor core screen (M2, CLAUDE.md §4): flat card canvas with tap-to-select,
+// one-finger drag-to-move, two-finger pinch-to-scale + twist-to-rotate,
+// undo/redo, front/back switch, color picker with eyedropper, layer panel.
 
 const TAP_SLOP = 8
 
@@ -22,7 +28,15 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
   const canUndo = useEditor((s) => s.past.length > 0)
   const canRedo = useEditor((s) => s.future.length > 0)
 
-  const cardWidth = Math.min(width - 32, 380)
+  // Fit the card to BOTH the screen width and the measured canvas-area
+  // height — otherwise the tall card overflows its flex slot and sits on
+  // top of the toolbar, stealing its taps (first emulator test).
+  const [areaH, setAreaH] = useState(0)
+  const maxCardWidth = Math.min(width - 32, 380)
+  const cardWidth =
+    areaH > 0
+      ? Math.min(maxCardWidth, ((areaH - 16) * doc.size.w) / doc.size.h)
+      : maxCardWidth
   const scale = cardWidth / doc.size.w
   const cardHeight = doc.size.h * scale
 
@@ -30,35 +44,122 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
     ? doc[side].layers.find((l) => l.id === selectedId) ?? null
     : null
   const selectionBox = selected ? layerBounds(selected, doc) : null
+  const selectedColor = selected ? layerColor(selected) : null
 
-  // Drag state lives in refs — the pan responder callbacks must not close
-  // over stale render values.
+  const canvasRef = useCanvasRef()
+
+  // ---- color picker + eyedropper ----
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const [eyedropping, setEyedropping] = useState(false)
+  const eyedroppingRef = useRef(false)
+  eyedroppingRef.current = eyedropping
+  const pickerOpenColor = useRef<Color | null>(null)
+
+  useEffect(() => {
+    // selection vanished (undo, delete) while the picker was up
+    if (pickerOpen && (!selected || selectedColor === null)) {
+      setPickerOpen(false)
+      setEyedropping(false)
+    }
+  }, [pickerOpen, selected, selectedColor])
+
+  const applyColor = useCallback((color: Color, transient: boolean) => {
+    const s = useEditor.getState()
+    if (!s.selectedId) return
+    s.updateLayer(s.selectedId, (l) => setLayerColor(l, color), { transient })
+  }, [])
+
+  const openPicker = () => {
+    pickerOpenColor.current = selectedColor
+    setPickerOpen(true)
+  }
+
+  const closePicker = () => {
+    const s = useEditor.getState()
+    const current = s.selectedId ? layerColor(findLayer(s.doc, s.side, s.selectedId)!) : null
+    if (current && current !== pickerOpenColor.current) s.pushRecentColor(current)
+    setPickerOpen(false)
+    setEyedropping(false)
+  }
+
+  /** Sample the rendered card at view coordinates (§6 eyedropper). */
+  const sampleAt = (vx: number, vy: number) => {
+    setEyedropping(false)
+    const rect = Skia.XYWHRect(Math.max(0, Math.floor(vx)), Math.max(0, Math.floor(vy)), 1, 1)
+    const image = canvasRef.current?.makeImageSnapshot(rect)
+    const pixels = image?.readPixels()
+    if (!pixels || pixels.length < 3) return
+    const norm = pixels instanceof Float32Array ? (v: number) => v : (v: number) => v / 255
+    applyColor(rgbaToHex(norm(pixels[0]), norm(pixels[1]), norm(pixels[2])), false)
+  }
+
+  // ---- canvas gestures ----
+  // All gesture state lives in refs — responder callbacks must not close
+  // over stale render values. One responder session = one undo step.
   const drag = useRef<{ id: string; startX: number; startY: number } | null>(null)
+  const pinchStart = useRef<PinchStart | null>(null)
+  const pinchLayerId = useRef<string | null>(null)
+  const gestureStarted = useRef(false) // beginGesture called this session
+  const sessionTransformed = useRef(false)
 
   const panResponder = useMemo(
     () =>
       PanResponder.create({
         onStartShouldSetPanResponder: () => true,
         onPanResponderGrant: (e) => {
+          pinchStart.current = null
+          pinchLayerId.current = null
+          gestureStarted.current = false
+          sessionTransformed.current = false
+          drag.current = null
+          if (eyedroppingRef.current) return
           const s = useEditor.getState()
           const x = e.nativeEvent.locationX / scale
           const y = e.nativeEvent.locationY / scale
-          const sel = s.selectedId ? s.doc[s.side].layers.find((l) => l.id === s.selectedId) : null
+          const sel = s.selectedId ? findLayer(s.doc, s.side, s.selectedId) : undefined
           if (sel && !sel.locked) {
             const b = layerBounds(sel, s.doc)
             if (x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h) {
               drag.current = { id: sel.id, startX: sel.transform.x, startY: sel.transform.y }
               s.beginGesture()
-              return
+              gestureStarted.current = true
             }
           }
-          drag.current = null
         },
-        onPanResponderMove: (_e, g) => {
+        onPanResponderMove: (e, g) => {
+          const s = useEditor.getState()
+          const touches = e.nativeEvent.touches
+
+          // two fingers anywhere on the canvas: pinch/twist the selection
+          if (touches.length >= 2) {
+            const sel = s.selectedId ? findLayer(s.doc, s.side, s.selectedId) : undefined
+            if (!sel || sel.locked) return
+            const a = { x: touches[0].locationX / scale, y: touches[0].locationY / scale }
+            const b = { x: touches[1].locationX / scale, y: touches[1].locationY / scale }
+            if (!pinchStart.current || pinchLayerId.current !== sel.id) {
+              if (!gestureStarted.current) {
+                s.beginGesture()
+                gestureStarted.current = true
+              }
+              pinchStart.current = beginPinch(sel, s.doc, a, b)
+              pinchLayerId.current = sel.id
+              drag.current = null
+              return
+            }
+            const next = applyPinch(pinchStart.current, a, b)
+            sessionTransformed.current = true
+            s.updateLayer(sel.id, (l) => void (l.transform = next), { transient: true })
+            return
+          }
+
+          // a finger lifted mid-pinch: freeze until the session ends
+          if (pinchStart.current) return
+
           if (!drag.current) return
           if (Math.abs(g.dx) <= TAP_SLOP && Math.abs(g.dy) <= TAP_SLOP) return
           const { id, startX, startY } = drag.current
-          useEditor.getState().updateLayer(
+          sessionTransformed.current = true
+          s.updateLayer(
             id,
             (l) => {
               l.transform.x = startX + g.dx / scale
@@ -68,18 +169,27 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
           )
         },
         onPanResponderRelease: (e, g) => {
-          const moved = Math.abs(g.dx) > TAP_SLOP || Math.abs(g.dy) > TAP_SLOP
+          const pinched = pinchStart.current !== null
           drag.current = null
-          if (moved) return
-          // a tap: select whatever is under the finger (or clear)
+          pinchStart.current = null
+          pinchLayerId.current = null
+          if (pinched || sessionTransformed.current) return
+          if (Math.abs(g.dx) > TAP_SLOP || Math.abs(g.dy) > TAP_SLOP) return
+          // a tap
+          const vx = e.nativeEvent.locationX
+          const vy = e.nativeEvent.locationY
+          if (eyedroppingRef.current) {
+            sampleAt(vx, vy)
+            return
+          }
           const s = useEditor.getState()
-          const x = e.nativeEvent.locationX / scale
-          const y = e.nativeEvent.locationY / scale
-          const hit = hitTest(s.doc, s.side, x, y)
+          const hit = hitTest(s.doc, s.side, vx / scale, vy / scale)
           s.select(hit ? hit.id : null)
         },
         onPanResponderTerminate: () => {
           drag.current = null
+          pinchStart.current = null
+          pinchLayerId.current = null
         },
       }),
     [scale],
@@ -126,12 +236,15 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
         </View>
       </View>
 
-      <View style={styles.canvasArea}>
+      <View
+        style={styles.canvasArea}
+        onLayout={(e) => setAreaH(e.nativeEvent.layout.height)}
+      >
         <View style={{ width: cardWidth, height: cardHeight }} {...panResponder.panHandlers}>
-          <Canvas style={{ width: cardWidth, height: cardHeight }}>
+          <Canvas ref={canvasRef} style={{ width: cardWidth, height: cardHeight }}>
             <CardRenderer doc={doc} side={side} viewState={defaultViewState()} scale={scale} />
           </Canvas>
-          {selectionBox ? (
+          {selectionBox && !eyedropping ? (
             <View
               pointerEvents="none"
               style={[
@@ -148,7 +261,43 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
         </View>
       </View>
 
+      {selected ? (
+        <View style={styles.propsBar}>
+          <Text style={styles.propsName} numberOfLines={1}>
+            {selected.name}
+          </Text>
+          <Text style={styles.propsInfo}>
+            {Math.round(selected.transform.rotation)}° · ×
+            {(((Math.abs(selected.transform.scaleX) + Math.abs(selected.transform.scaleY)) / 2)).toFixed(2)}
+          </Text>
+          {selectedColor ? (
+            <Pressable style={styles.colorChipBack} hitSlop={6} onPress={openPicker}>
+              <View style={[styles.colorChip, { backgroundColor: selectedColor }]} />
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
+
       <LayerPanel />
+
+      {eyedropping ? (
+        <View style={styles.eyedropBanner} pointerEvents="box-none">
+          <Text style={styles.eyedropText}>Tap the card to sample a color</Text>
+          <Pressable hitSlop={8} onPress={() => setEyedropping(false)}>
+            <Text style={styles.eyedropCancel}>Cancel</Text>
+          </Pressable>
+        </View>
+      ) : null}
+
+      {pickerOpen && !eyedropping && selectedColor ? (
+        <ColorPicker
+          value={selectedColor}
+          onChange={applyColor}
+          onGestureStart={() => useEditor.getState().beginGesture()}
+          onClose={closePicker}
+          onEyedropper={() => setEyedropping(true)}
+        />
+      ) : null}
     </View>
   )
 }
@@ -189,4 +338,40 @@ const styles = StyleSheet.create({
     borderColor: '#4da3ff',
     borderRadius: 3,
   },
+  propsBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: '#0d1120',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#232b42',
+  },
+  propsName: { color: '#e6ecf7', fontSize: 13, flex: 1 },
+  propsInfo: { color: '#5a6478', fontSize: 12, fontVariant: ['tabular-nums'] },
+  colorChipBack: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: '#e8e8e8',
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#3d4a6e',
+  },
+  colorChip: { flex: 1 },
+  eyedropBanner: {
+    position: 'absolute',
+    top: 108,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    backgroundColor: '#1c2233ee',
+    borderRadius: 18,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  eyedropText: { color: '#e6ecf7', fontSize: 13 },
+  eyedropCancel: { color: '#4da3ff', fontSize: 13, fontWeight: '600' },
 })

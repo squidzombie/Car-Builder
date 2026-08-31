@@ -1,0 +1,111 @@
+import { test, expect } from '@jest/globals'
+import type { CardDocument, Layer } from '../../model/types'
+import {
+  MAX_SCALE,
+  MIN_SCALE,
+  applyPinch,
+  beginPinch,
+  localToDoc,
+} from '../transformGesture'
+
+// Pure math for the two-finger transform. The core invariant: the layer's
+// visual center at gesture start stays glued to the finger midpoint.
+
+const doc = { size: { w: 750, h: 1050 } } as CardDocument
+
+function shapeLayer(t: Partial<Layer['transform']> = {}): Layer {
+  return {
+    id: 's1',
+    name: 'Square',
+    type: 'shape',
+    transform: { x: 100, y: 100, rotation: 0, scaleX: 1, scaleY: 1, ...t },
+    opacity: 1,
+    blendMode: 'srcOver',
+    locked: false,
+    visible: true,
+    shape: { shapeId: 'square', paint: { color: '#ffffff' }, w: 100, h: 100 },
+  }
+}
+
+// 100x100 square at (100,100) → bounds center (150,150), local center (50,50)
+
+test('pure pinch scales uniformly about the layer center', () => {
+  const layer = shapeLayer()
+  const start = beginPinch(layer, doc, { x: 100, y: 150 }, { x: 200, y: 150 })!
+  const next = applyPinch(start, { x: 75, y: 150 }, { x: 225, y: 150 })
+  expect(next.scaleX).toBeCloseTo(1.5)
+  expect(next.scaleY).toBeCloseTo(1.5)
+  expect(next.rotation).toBeCloseTo(0)
+  expect(next.x).toBeCloseTo(75)
+  expect(next.y).toBeCloseTo(75)
+  const center = localToDoc(next, start.pivotLocal)
+  expect(center.x).toBeCloseTo(150)
+  expect(center.y).toBeCloseTo(150)
+})
+
+test('twist rotates about the layer center', () => {
+  const layer = shapeLayer()
+  const start = beginPinch(layer, doc, { x: 100, y: 150 }, { x: 200, y: 150 })!
+  const next = applyPinch(start, { x: 150, y: 100 }, { x: 150, y: 200 })
+  expect(next.rotation).toBeCloseTo(90)
+  expect(next.scaleX).toBeCloseTo(1)
+  expect(next.x).toBeCloseTo(200)
+  expect(next.y).toBeCloseTo(100)
+  const center = localToDoc(next, start.pivotLocal)
+  expect(center.x).toBeCloseTo(150)
+  expect(center.y).toBeCloseTo(150)
+})
+
+test('moving both fingers pans the layer', () => {
+  const layer = shapeLayer()
+  const start = beginPinch(layer, doc, { x: 100, y: 150 }, { x: 200, y: 150 })!
+  const next = applyPinch(start, { x: 130, y: 150 }, { x: 230, y: 150 })
+  expect(next).toMatchObject({ rotation: 0 })
+  expect(next.x).toBeCloseTo(130)
+  expect(next.y).toBeCloseTo(100)
+})
+
+test('center follows the midpoint through an arbitrary gesture on a rotated layer', () => {
+  const layer = shapeLayer({ rotation: 45, scaleX: 1.2, scaleY: 1.2 })
+  const a0 = { x: 120, y: 140 }
+  const b0 = { x: 210, y: 160 }
+  const start = beginPinch(layer, doc, a0, b0)!
+  const a1 = { x: 100, y: 150 }
+  const b1 = { x: 230, y: 110 }
+  const next = applyPinch(start, a1, b1)
+  const mid0 = { x: (a0.x + b0.x) / 2, y: (a0.y + b0.y) / 2 }
+  const mid1 = { x: (a1.x + b1.x) / 2, y: (a1.y + b1.y) / 2 }
+  const center = localToDoc(next, start.pivotLocal)
+  expect(center.x).toBeCloseTo(start.pivot.x + (mid1.x - mid0.x))
+  expect(center.y).toBeCloseTo(start.pivot.y + (mid1.y - mid0.y))
+})
+
+test('scale clamps at both ends', () => {
+  const layer = shapeLayer()
+  const start = beginPinch(layer, doc, { x: 145, y: 150 }, { x: 155, y: 150 })!
+  const huge = applyPinch(start, { x: -5000, y: 150 }, { x: 5000, y: 150 })
+  expect(huge.scaleX).toBeCloseTo(MAX_SCALE)
+  const wide = beginPinch(layer, doc, { x: 0, y: 150 }, { x: 700, y: 150 })!
+  const tiny = applyPinch(wide, { x: 349, y: 150 }, { x: 351, y: 150 })
+  expect(tiny.scaleX).toBeCloseTo(MIN_SCALE)
+})
+
+test('rotation stays normalized to (-180, 180]', () => {
+  const layer = shapeLayer({ rotation: 170 })
+  const start = beginPinch(layer, doc, { x: 100, y: 150 }, { x: 200, y: 150 })!
+  // +30° twist: rotate both touches by 30° around the midpoint
+  const rad = (30 * Math.PI) / 180
+  const rot = (p: { x: number; y: number }) => ({
+    x: 150 + (p.x - 150) * Math.cos(rad) - (p.y - 150) * Math.sin(rad),
+    y: 150 + (p.x - 150) * Math.sin(rad) + (p.y - 150) * Math.cos(rad),
+  })
+  const next = applyPinch(start, rot({ x: 100, y: 150 }), rot({ x: 200, y: 150 }))
+  expect(next.rotation).toBeCloseTo(-160)
+})
+
+test('degenerate starts return null', () => {
+  expect(beginPinch(shapeLayer(), doc, { x: 150, y: 150 }, { x: 150, y: 150 })).toBeNull()
+  expect(
+    beginPinch(shapeLayer({ scaleX: 0 }), doc, { x: 100, y: 150 }, { x: 200, y: 150 }),
+  ).toBeNull()
+})
