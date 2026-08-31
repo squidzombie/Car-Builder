@@ -2,7 +2,8 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { PanResponder, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native'
 import { Canvas, Group, Skia, useCanvasRef } from '@shopify/react-native-skia'
 import { CardRenderer } from '../renderer/CardRenderer'
-import { defaultViewState } from '../model/types'
+import { defaultViewState, lightFromTilt } from '../model/types'
+import type { ViewState } from '../model/types'
 import type { Color, Layer, Point } from '../model/types'
 import { rgbaToHex } from '../model/color'
 import { BUILTIN_SHAPES } from '../model/shapes'
@@ -25,6 +26,7 @@ import { LayerPanel } from './LayerPanel'
 import { ShapeBuilder } from './ShapeBuilder'
 import { MaskEditor } from './MaskEditor'
 import { TextEditor } from './TextEditor'
+import { FinishEditor } from './FinishEditor'
 import { useDocImages } from '../view/useDocImages'
 import { ToolBar, type DrawSettings, type EditorMode, type StampSettings } from './ToolBar'
 
@@ -96,17 +98,36 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
   const [builderOpen, setBuilderOpen] = useState(false)
   const [maskOpen, setMaskOpen] = useState(false)
   const [textOpen, setTextOpen] = useState(false)
+  const [fxOpen, setFxOpen] = useState(false)
+
+  // sweep the tilt while the finish sheet is open — live holo preview (§5)
+  const [fxTilt, setFxTilt] = useState<ViewState>(defaultViewState())
+  useEffect(() => {
+    if (!fxOpen) {
+      setFxTilt(defaultViewState())
+      return
+    }
+    const start = Date.now()
+    const id = setInterval(() => {
+      const t = (Date.now() - start) / 1000
+      const tiltX = Math.sin(t * 1.3) * 0.7
+      const tiltY = Math.cos(t * 0.9) * 0.5
+      setFxTilt({ tiltX, tiltY, ...lightFromTilt(tiltX, tiltY) })
+    }, 33)
+    return () => clearInterval(id)
+  }, [fxOpen])
 
   const allShapes = useMemo(() => [...BUILTIN_SHAPES, ...(doc.shapes ?? [])], [doc.shapes])
   const assets = useDocImages(doc)
 
   useEffect(() => {
     // the edited layer vanished (undo/delete) while a sheet was up
-    if ((maskOpen || textOpen) && !selected) {
+    if ((maskOpen || textOpen || fxOpen) && !selected) {
       setMaskOpen(false)
       setTextOpen(false)
+      setFxOpen(false)
     }
-  }, [maskOpen, textOpen, selected])
+  }, [maskOpen, textOpen, fxOpen, selected])
 
   // ---- color picker + eyedropper ----
   const [pickerOpen, setPickerOpen] = useState(false)
@@ -650,7 +671,7 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
                 <CardRenderer
                   doc={doc}
                   side={side}
-                  viewState={defaultViewState()}
+                  viewState={fxOpen ? fxTilt : defaultViewState()}
                   assets={assets}
                   scale={total}
                 />
@@ -713,6 +734,9 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
           <Pressable style={styles.propsAction} hitSlop={6} onPress={() => setMaskOpen(true)}>
             <Text style={styles.propsActionText}>{selected.mask ? 'Mask ●' : 'Mask'}</Text>
           </Pressable>
+          <Pressable style={styles.propsAction} hitSlop={6} onPress={() => setFxOpen(true)}>
+            <Text style={styles.propsActionText}>{selected.finish ? 'FX ●' : 'FX'}</Text>
+          </Pressable>
           {selectedColor ? (
             <Pressable style={styles.colorChipBack} hitSlop={6} onPress={() => openPicker('layer')}>
               <View style={[styles.colorChip, { backgroundColor: selectedColor }]} />
@@ -746,6 +770,10 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
 
       {maskOpen && selected ? (
         <MaskEditor layerId={selected.id} onClose={() => setMaskOpen(false)} />
+      ) : null}
+
+      {fxOpen && selected ? (
+        <FinishEditor layerId={selected.id} onClose={() => setFxOpen(false)} />
       ) : null}
 
       {textOpen && selected?.type === 'text' ? (

@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar'
 import { useTilt } from './src/view/useTilt'
 import { TiltCard } from './src/view/TiltCard'
 import { useDocImages } from './src/view/useDocImages'
+import { useBundledFonts } from './src/view/useBundledFonts'
 import { EditorScreen } from './src/editor/EditorScreen'
 import { useEditor } from './src/state/useEditor'
 
@@ -12,6 +13,7 @@ import { useEditor } from './src/state/useEditor'
 // the preview instantly because both read the same doc.
 export default function App() {
   const [screen, setScreen] = useState<'preview' | 'edit'>('preview')
+  useBundledFonts()
   return (
     <>
       <StatusBar style="light" />

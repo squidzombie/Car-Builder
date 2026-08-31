@@ -18,6 +18,7 @@ import {
 } from '@shopify/react-native-skia'
 import type { CardDocument, Layer, Mask, ViewState } from '../model/types'
 import { getShape } from '../model/shapes'
+import { getTypeface } from './fonts'
 import { getFinishEffect, buildFinishUniforms } from '../finishes'
 import { strokePathFromPoints } from './strokePath'
 import { paintColor, PaintChildren } from './paintProps'
@@ -299,11 +300,10 @@ function LayerContent({
     }
     case 'text': {
       const t = layer.text!
-      const font = matchFont({
-        fontFamily: t.font === 'system' ? FONT_FAMILY : t.font,
-        fontSize: t.size,
-        fontWeight: 'bold',
-      })
+      const tf = t.font !== 'system' ? getTypeface(t.font) : undefined
+      const font = tf
+        ? Skia.Font(tf, t.size)
+        : matchFont({ fontFamily: FONT_FAMILY, fontSize: t.size, fontWeight: 'bold' })
       let x = 0
       if (t.align !== 'l') {
         const width = font.measureText(t.content).width

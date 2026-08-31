@@ -3,6 +3,11 @@
   "version": "1.0.0",
   "main": "index.ts",
   "dependencies": {
+    "@expo-google-fonts/anton": "^0.4.2",
+    "@expo-google-fonts/audiowide": "^0.4.1",
+    "@expo-google-fonts/bebas-neue": "^0.4.1",
+    "@expo-google-fonts/pacifico": "^0.4.1",
+    "@expo-google-fonts/permanent-marker": "^0.4.0",
     "@shopify/react-native-skia": "^2.6.2",
     "expo": "~57.0.18",
     "expo-image-picker": "~57.0.14",

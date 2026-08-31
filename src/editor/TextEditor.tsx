@@ -1,6 +1,7 @@
 import React from 'react'
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native'
 import type { Layer } from '../model/types'
+import { FONT_CHOICES } from '../renderer/fonts'
 import { useEditor } from '../state/useEditor'
 import { MiniSlider } from './MiniSlider'
 
@@ -39,6 +40,22 @@ export function TextEditor({ layerId, onClose }: Props) {
           autoCorrect={false}
           multiline={false}
         />
+
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          <View style={styles.alignRow}>
+            {FONT_CHOICES.map((f) => (
+              <Pressable
+                key={f.key}
+                style={[styles.alignChip, t.font === f.key && styles.alignChipActive]}
+                onPress={() => patch((l) => (l.text!.font = f.key), false)}
+              >
+                <Text style={[styles.alignText, t.font === f.key && styles.alignTextActive]}>
+                  {f.label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </ScrollView>
 
         <MiniSlider
           label={`Size · ${Math.round(t.size)}`}
