@@ -1,4 +1,25 @@
-# Handoff — state of the project as of 2026-08-31 (evening: M3 nearly done)
+# Handoff — state of the project as of 2026-08-31 (late: M3 done, M4 core done)
+
+## Latest slice (fonts + finish editor) — emulator-verified
+
+- **Bundled display fonts** (§4 complete): Anton, Bebas Neue, Permanent
+  Marker, Pacifico, Audiowide via @expo-google-fonts; SkTypeface registry
+  (`renderer/fonts.ts`) filled by `useBundledFonts` at app root; font
+  chips in the TextEditor. Fallback to system face until decoded.
+  NOTE for web viewer (M6): the same faces must load there too.
+- **M4 finish editor core**: FinishEditor sheet on every layer (FX chip) —
+  family + preset chips (all 17), intensity/scale sliders, Rainbow vs
+  Card-palette mode (palette-fed holo verified live), None to remove.
+  Editor canvas sweeps tilt while the sheet is open (live shimmer).
+- M4 possibly remaining: per-preset param tweaking UI (uP0..uP3) if we
+  want it user-facing — §5 lists only intensity/scale/palette controls,
+  so M4 may be DONE as specced; judge on device feel.
+- Metro gotcha: newly installed npm packages needed a Metro restart plus
+  `npx expo start --clear`; kill the stale process on 8081 first
+  (netstat -ano | grep :8081).
+
+---
+# Previous notes (2026-08-31 evening: M3)
 
 ## M3 status (content tools, CLAUDE.md §4) — built and emulator-verified
 
