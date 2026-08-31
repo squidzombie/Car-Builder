@@ -70,17 +70,44 @@ All emulator-verified unless noted:
   presets × 3 tilts through CanvasKit into docs/finishes/ (51 PNGs
   committed). Re-run after any shader/preset change.
 
-## Known open issue
+## Third M2 slice (2026-08-31, evening) — pin grid fixed, M2 COMPLETE
 
-- **Pin drag-to-reorder doesn't fire on device** (`PinnedGrid` in
-  ColorPicker.tsx). Root cause isolated with on-device logging:
-  `measureInWindow` on the grid returns a y ~54dp above where the row
-  actually renders (Expo Go, Pixel_7 emulator), so `indexAt` computes -1
-  and the whole gesture no-ops (tap-to-apply and hold-to-unpin on pins are
-  affected the same way). The store action `reorderPins` is correct and
-  unit-tested. Next idea: stop using measureInWindow — give each swatch
-  its own small responder (or Pressables + a grid-level drag overlay), or
-  measure relative to the sheet root. Everything else in the picker works.
+- **Pin drag-to-reorder fixed and emulator-verified** (tap-to-apply,
+  hold-to-remove, drag-to-reorder all confirmed). The old approach hit an
+  Android quirk: `measureInWindow` returns a y ~54dp above where touch
+  `pageY` says the same row is (status-bar inset disagreement, Pixel_7).
+  New approach avoids absolute coordinates entirely: each swatch has its
+  own PanResponder and the drop slot is computed from the swatch's index
+  plus the gesture's RELATIVE dx/dy in 38px slot units (`PinSwatch` /
+  `targetIndex` in ColorPicker.tsx). Rule of thumb for this codebase:
+  never mix measureInWindow with pageX/pageY; prefer relative deltas.
+- **M2 (editor core) is complete** per §11: layer panel, selection +
+  transform gestures, undo/redo, fill/shape layers, color picker with
+  pins/recents/eyedropper — plus canvas zoom/pan, hit-test refinement,
+  starter palettes, rotation snap.
+
+## Next
+
+1. Merge to `main` (PR from this branch) — M0–M2 all device-verified.
+2. M3 content tools: photo import + cutout + fade masks, free draw,
+   stamping, mirror symmetry, custom polygon builder UI, text editing.
+   (`buildPolygonPath` and all shape plumbing already exist in the model.)
+3. Deferred polish: SkPath deprecation migration to PathBuilder; §5 perf
+   pass if tilt stutters on device (move ViewState to shared values).
+4. M4 finishes UI: user especially wants palette-fed holo (see memory /
+   "User priorities" above) — make palette choice prominent.
+
+## Gotchas for the next session
+
+- Expo Go Fast Refresh got stale twice after multi-file edits (kept
+  running old code, once with a phantom "SweepGradient doesn't exist"
+  error). Remedy: dev menu (`adb shell input keyevent 82`) → Reload, or
+  restart `npx expo start`.
+- adb/emulator are NOT on bash PATH: use `$LOCALAPPDATA/Android/Sdk/...`.
+- Multitouch injection: `adb root`, then sendevent type-B protocol on
+  `/dev/input/event2` (scripts existed in the session scratchpad —
+  rewrite from HANDOFF if needed: slot/tracking-id/x/y/syn per frame,
+  coords scaled to 0..32767 over the 1080x2400 screen).
 
 ## Still open in M2
 
