@@ -2,7 +2,8 @@ import React, { useState } from 'react'
 import { FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
 import * as ImagePicker from 'expo-image-picker'
 import type { Layer } from '../model/types'
-import { registerAsset } from '../model/assets'
+import { registerAsset, setAssetUri } from '../model/assets'
+import { persistAsset } from '../model/storage'
 import { useEditor } from '../state/useEditor'
 import { makeFillLayer, makeImageLayer, makeShapeLayer } from '../state/editorStore'
 
@@ -73,13 +74,12 @@ export function LayerPanel() {
               })
               const asset = res.assets?.[0]
               if (res.canceled || !asset) return
-              addLayer(
-                makeImageLayer(
-                  registerAsset(asset.uri),
-                  asset.width ?? 1000,
-                  asset.height ?? 1000,
-                ),
-              )
+              const assetId = registerAsset(asset.uri)
+              // copy out of the picker cache so the photo survives restarts
+              persistAsset(asset.uri, assetId)
+                .then((uri) => setAssetUri(assetId, uri))
+                .catch(() => {})
+              addLayer(makeImageLayer(assetId, asset.width ?? 1000, asset.height ?? 1000))
             }}
           >
             <Text style={styles.addChoiceText}>◱ Photo</Text>

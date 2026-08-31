@@ -16,3 +16,8 @@ export function registerAsset(uri: string): string {
 export function getAssetUri(id: string): string | undefined {
   return uris.get(id)
 }
+
+/** Point an id at a (persistent) URI — boot restore and post-copy rebind. */
+export function setAssetUri(id: string, uri: string): void {
+  uris.set(id, uri)
+}

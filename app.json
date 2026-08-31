@@ -31,7 +31,8 @@
         {
           "photosPermission": "Card Builder uses your photo library so you can put your photos on cards."
         }
-      ]
+      ],
+      "expo-sharing"
     ]
   }
 }

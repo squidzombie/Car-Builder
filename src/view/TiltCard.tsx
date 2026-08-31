@@ -16,13 +16,19 @@ export function TiltCard({
   view,
   width,
   assets,
+  onSideChange,
 }: {
   doc: CardDocument
   view: ViewState
   width: number
   assets?: Record<string, SkImage>
+  onSideChange?: (side: 'front' | 'back') => void
 }) {
-  const [side, setSide] = useState<'front' | 'back'>('front')
+  const [side, setSideState] = useState<'front' | 'back'>('front')
+  const setSide = (s: 'front' | 'back') => {
+    setSideState(s)
+    onSideChange?.(s)
+  }
   const flip = useRef(new Animated.Value(0)).current
   const flipped = useRef(false)
 

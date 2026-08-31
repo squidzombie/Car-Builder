@@ -173,7 +173,7 @@ Every template also defines a **back**: stats table (5 rows x 4 cols), bio text 
 
 - **Export PNG:** front and back at full resolution, holo baked at a fixed "hero" tilt. Option to export a short looping video of the tilt (v1.5).
 - **Share link:** upload `CardDocument` JSON + assets + PNG to Supabase Storage → `https://<domain>/c/{id}`. Web viewer renders with the real shader; mouse-move or device-orientation drives tilt. No login needed to view or to create a link. Links are unlisted (random 10-char id).
-- **Local save:** cards persist on device (SQLite via Expo). Cloud is only for share links in v1.
+- **Local save:** cards persist on device (JSON files via expo-file-system — docs are whole-blob JSON, no queries needed). Cloud is only for share links in v1.
 
 ## 10. Out of scope for v1
 
