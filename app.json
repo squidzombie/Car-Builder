@@ -1,17 +1,21 @@
 {
   "expo": {
-    "name": "cardbuilder",
+    "name": "Card Builder",
     "slug": "cardbuilder",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#08090f",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.maxlockleer.cardbuilder",
+      "buildNumber": "1"
     },
     "android": {
+      "package": "com.maxlockleer.cardbuilder",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#0b0e19",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
@@ -20,6 +24,14 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Card Builder uses your photo library so you can put your photos on cards."
+        }
+      ]
+    ]
   }
 }

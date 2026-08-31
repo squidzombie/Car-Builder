@@ -100,7 +100,8 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
   const [textOpen, setTextOpen] = useState(false)
   const [fxOpen, setFxOpen] = useState(false)
 
-  // sweep the tilt while the finish sheet is open — live holo preview (§5)
+  // sweep the tilt while the finish sheet is open — a slow, subtle drift
+  // (user feedback: just a hint; the full effect lives in the tilt preview)
   const [fxTilt, setFxTilt] = useState<ViewState>(defaultViewState())
   useEffect(() => {
     if (!fxOpen) {
@@ -110,8 +111,8 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
     const start = Date.now()
     const id = setInterval(() => {
       const t = (Date.now() - start) / 1000
-      const tiltX = Math.sin(t * 1.3) * 0.7
-      const tiltY = Math.cos(t * 0.9) * 0.5
+      const tiltX = Math.sin(t * 0.22) * 0.28
+      const tiltY = Math.cos(t * 0.16) * 0.2
       setFxTilt({ tiltX, tiltY, ...lightFromTilt(tiltX, tiltY) })
     }, 33)
     return () => clearInterval(id)
