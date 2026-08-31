@@ -1,8 +1,10 @@
 import React, { useState } from 'react'
 import { FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
+import * as ImagePicker from 'expo-image-picker'
 import type { Layer } from '../model/types'
+import { registerAsset } from '../model/assets'
 import { useEditor } from '../state/useEditor'
-import { makeFillLayer, makeShapeLayer } from '../state/editorStore'
+import { makeFillLayer, makeImageLayer, makeShapeLayer } from '../state/editorStore'
 
 // Bottom layer panel (CLAUDE.md §4): select / reorder / rename / lock /
 // hide / duplicate / delete. The list shows the TOP layer first, matching
@@ -61,6 +63,27 @@ export function LayerPanel() {
 
       {adding ? (
         <View style={styles.addRow}>
+          <Pressable
+            style={styles.addChoice}
+            onPress={async () => {
+              setAdding(false)
+              const res = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ['images'],
+                quality: 1,
+              })
+              const asset = res.assets?.[0]
+              if (res.canceled || !asset) return
+              addLayer(
+                makeImageLayer(
+                  registerAsset(asset.uri),
+                  asset.width ?? 1000,
+                  asset.height ?? 1000,
+                ),
+              )
+            }}
+          >
+            <Text style={styles.addChoiceText}>◱ Photo</Text>
+          </Pressable>
           {ADD_CHOICES.map((choice) => (
             <Pressable
               key={choice.label}

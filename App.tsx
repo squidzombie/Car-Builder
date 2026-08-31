@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-na
 import { StatusBar } from 'expo-status-bar'
 import { useTilt } from './src/view/useTilt'
 import { TiltCard } from './src/view/TiltCard'
+import { useDocImages } from './src/view/useDocImages'
 import { EditorScreen } from './src/editor/EditorScreen'
 import { useEditor } from './src/state/useEditor'
 
@@ -27,12 +28,13 @@ function PreviewScreen({ onEdit }: { onEdit: () => void }) {
   const { width } = useWindowDimensions()
   const { view, panHandlers } = useTilt()
   const doc = useEditor((s) => s.doc)
+  const assets = useDocImages(doc)
 
   const cardWidth = Math.min(width - 48, 380)
 
   return (
     <View style={styles.root} {...panHandlers}>
-      <TiltCard doc={doc} view={view} width={cardWidth} />
+      <TiltCard doc={doc} view={view} width={cardWidth} assets={assets} />
       <View style={styles.controls}>
         <Pressable style={styles.editButton} onPress={onEdit} hitSlop={6}>
           <Text style={styles.editButtonText}>Edit card</Text>

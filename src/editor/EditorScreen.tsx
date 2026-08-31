@@ -23,6 +23,9 @@ import { layerColor, setLayerColor } from './layerColor'
 import { ColorPicker } from './ColorPicker'
 import { LayerPanel } from './LayerPanel'
 import { ShapeBuilder } from './ShapeBuilder'
+import { MaskEditor } from './MaskEditor'
+import { TextEditor } from './TextEditor'
+import { useDocImages } from '../view/useDocImages'
 import { ToolBar, type DrawSettings, type EditorMode, type StampSettings } from './ToolBar'
 
 // Editor screen (M2 core + M3 tools, CLAUDE.md §4).
@@ -91,8 +94,19 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
   const toolRef = useRef({ mode, draw, stamp })
   toolRef.current = { mode, draw, stamp }
   const [builderOpen, setBuilderOpen] = useState(false)
+  const [maskOpen, setMaskOpen] = useState(false)
+  const [textOpen, setTextOpen] = useState(false)
 
   const allShapes = useMemo(() => [...BUILTIN_SHAPES, ...(doc.shapes ?? [])], [doc.shapes])
+  const assets = useDocImages(doc)
+
+  useEffect(() => {
+    // the edited layer vanished (undo/delete) while a sheet was up
+    if ((maskOpen || textOpen) && !selected) {
+      setMaskOpen(false)
+      setTextOpen(false)
+    }
+  }, [maskOpen, textOpen, selected])
 
   // ---- color picker + eyedropper ----
   const [pickerOpen, setPickerOpen] = useState(false)
@@ -633,7 +647,13 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
           <>
             <Canvas ref={canvasRef} style={{ width: area.w, height: area.h }}>
               <Group transform={[{ translateX: originX }, { translateY: originY }]}>
-                <CardRenderer doc={doc} side={side} viewState={defaultViewState()} scale={total} />
+                <CardRenderer
+                  doc={doc}
+                  side={side}
+                  viewState={defaultViewState()}
+                  assets={assets}
+                  scale={total}
+                />
               </Group>
             </Canvas>
             {selectionBox && !eyedropping && mode === 'select' ? (
@@ -685,6 +705,14 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
             {Math.round(selected.transform.rotation)}° · ×
             {(((Math.abs(selected.transform.scaleX) + Math.abs(selected.transform.scaleY)) / 2)).toFixed(2)}
           </Text>
+          {selected.type === 'text' ? (
+            <Pressable style={styles.propsAction} hitSlop={6} onPress={() => setTextOpen(true)}>
+              <Text style={styles.propsActionText}>Edit</Text>
+            </Pressable>
+          ) : null}
+          <Pressable style={styles.propsAction} hitSlop={6} onPress={() => setMaskOpen(true)}>
+            <Text style={styles.propsActionText}>{selected.mask ? 'Mask ●' : 'Mask'}</Text>
+          </Pressable>
           {selectedColor ? (
             <Pressable style={styles.colorChipBack} hitSlop={6} onPress={() => openPicker('layer')}>
               <View style={[styles.colorChip, { backgroundColor: selectedColor }]} />
@@ -714,6 +742,14 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
           onClose={closePicker}
           onEyedropper={() => setEyedropping(true)}
         />
+      ) : null}
+
+      {maskOpen && selected ? (
+        <MaskEditor layerId={selected.id} onClose={() => setMaskOpen(false)} />
+      ) : null}
+
+      {textOpen && selected?.type === 'text' ? (
+        <TextEditor layerId={selected.id} onClose={() => setTextOpen(false)} />
       ) : null}
 
       {builderOpen ? (
@@ -788,6 +824,13 @@ const styles = StyleSheet.create({
   },
   propsName: { color: '#e6ecf7', fontSize: 13, flex: 1 },
   propsInfo: { color: '#5a6478', fontSize: 12, fontVariant: ['tabular-nums'] },
+  propsAction: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: '#1c2233',
+  },
+  propsActionText: { color: '#c9d6ea', fontSize: 12 },
   colorChipBack: {
     width: 28,
     height: 28,

@@ -278,6 +278,29 @@ export function makeFillLayer(paint: Paint): Layer {
   }
 }
 
+/** Photo layer scaled to fit the card width, centered (M3). */
+export function makeImageLayer(assetId: string, srcW: number, srcH: number): Layer {
+  const w = Math.round(CARD_W * 0.9)
+  const h = Math.round((srcH / Math.max(1, srcW)) * w)
+  return {
+    id: newLayerId('image'),
+    name: 'Photo',
+    type: 'image',
+    transform: {
+      x: (CARD_W - w) / 2,
+      y: Math.max(40, (CARD_H - h) / 2),
+      rotation: 0,
+      scaleX: 1,
+      scaleY: 1,
+    },
+    opacity: 1,
+    blendMode: 'srcOver',
+    locked: false,
+    visible: true,
+    image: { assetId, cutout: 'none', w, h },
+  }
+}
+
 /** Empty free-draw layer with the given stroke style (M3). */
 export function makePathLayer(stroke: { color: Color; width: number }): Layer {
   return {

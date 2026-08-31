@@ -1,10 +1,11 @@
-import React, { useMemo, useRef, useState } from 'react'
-import { PanResponder, Pressable, StyleSheet, Switch, Text, View } from 'react-native'
+import React, { useMemo, useState } from 'react'
+import { Pressable, StyleSheet, Switch, Text, View } from 'react-native'
 import { buildPolygonPath } from '../model/shapes'
 import type { Shape } from '../model/shapeTypes'
 import { useEditor } from '../state/useEditor'
 import { newLayerId } from '../state/editorStore'
 import { ShapeGlyph } from './ToolBar'
+import { MiniSlider } from './MiniSlider'
 
 // Custom polygon builder (CLAUDE.md §4): sides 3–24, optional star inset,
 // optional corner rounding. Saved shapes live in CardDocument.shapes so
@@ -96,62 +97,6 @@ export function ShapeBuilder({ onClose, onSaved }: Props) {
   )
 }
 
-function MiniSlider({
-  label,
-  value,
-  min,
-  max,
-  step,
-  onChange,
-}: {
-  label: string
-  value: number
-  min: number
-  max: number
-  step?: number
-  onChange: (v: number) => void
-}) {
-  const trackW = useRef(1)
-  const onChangeRef = useRef(onChange)
-  onChangeRef.current = onChange
-  const rangeRef = useRef({ min, max, step })
-  rangeRef.current = { min, max, step }
-
-  const setFromX = (x: number) => {
-    const { min: lo, max: hi, step: st } = rangeRef.current
-    let v = lo + Math.max(0, Math.min(1, x / trackW.current)) * (hi - lo)
-    if (st) v = Math.round(v / st) * st
-    onChangeRef.current(Math.max(lo, Math.min(hi, v)))
-  }
-
-  const pan = useMemo(
-    () =>
-      PanResponder.create({
-        onStartShouldSetPanResponder: () => true,
-        onPanResponderGrant: (e) => setFromX(e.nativeEvent.locationX),
-        onPanResponderMove: (e) => setFromX(e.nativeEvent.locationX),
-      }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [],
-  )
-
-  const frac = (value - min) / (max - min)
-
-  return (
-    <View style={styles.sliderRow}>
-      <Text style={styles.sliderLabel}>{label}</Text>
-      <View
-        style={styles.track}
-        onLayout={(e) => (trackW.current = Math.max(1, e.nativeEvent.layout.width))}
-        {...pan.panHandlers}
-      >
-        <View pointerEvents="none" style={[styles.trackFill, { width: `${frac * 100}%` }]} />
-        <View pointerEvents="none" style={[styles.thumb, { left: `${frac * 100}%` }]} />
-      </View>
-    </View>
-  )
-}
-
 const styles = StyleSheet.create({
   overlay: {
     position: 'absolute',
@@ -204,28 +149,5 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingRight: 4,
   },
-  sliderRow: { gap: 6 },
   sliderLabel: { color: '#7f8db0', fontSize: 12 },
-  track: {
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: '#1c2233',
-    justifyContent: 'center',
-    overflow: 'hidden',
-  },
-  trackFill: {
-    position: 'absolute',
-    left: 0,
-    top: 0,
-    bottom: 0,
-    backgroundColor: '#2a3554',
-  },
-  thumb: {
-    position: 'absolute',
-    width: 4,
-    height: 18,
-    borderRadius: 2,
-    marginLeft: -2,
-    backgroundColor: '#4da3ff',
-  },
 })

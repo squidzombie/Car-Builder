@@ -1,4 +1,41 @@
-# Handoff — state of the project as of 2026-08-31
+# Handoff — state of the project as of 2026-08-31 (evening: M3 nearly done)
+
+## M3 status (content tools, CLAUDE.md §4) — built and emulator-verified
+
+- **Draw**: ToolBar modes Select/Draw/Stamp; width presets, brush color
+  (picker + eyedropper retarget to the tool), Catmull-Rom strokes, dot on
+  tap, stroke-level eraser. Strokes accumulate into the selected drawing
+  when the style matches; otherwise a new path layer is created. Model
+  change: `path.strokes[]` — a session's strokes share one layer + style.
+- **Stamp**: shape strip (14 builtins + doc customs, Skia glyph previews),
+  S/M/L, fixed/random/follow rotation, jitter, spacing on drag.
+- **Mirror symmetry** off/H/V/both for draw AND stamp, applied at input
+  time (real content). Two fingers in tool modes always zoom/pan; a stroke
+  in flight cancels via undo (tool gesture = one history entry).
+- **ShapeBuilder** (§4 polygon builder): sides 3–24, star inset, corner
+  rounding, live preview → saved into `CardDocument.shapes` (travels with
+  the card), auto-selected for stamping.
+- **Photo import**: expo-image-picker → in-memory asset registry
+  (`src/model/assets.ts`, id→uri) → `useDocImages` decodes SkImages with a
+  session cache; preview + editor both pass `assets` to CardRenderer.
+- **Fade masks** (MaskEditor sheet): none/linear/radial, angle + fade
+  start + softness sliders, live preview, slider drag = one undo step.
+- **Text editing** (TextEditor sheet): content, size slider, alignment.
+- Shared MiniSlider component (`src/editor/MiniSlider.tsx`).
+
+## M3 remaining / deferred
+
+- **Subject cutout** (§4) requires native modules (iOS Vision / ML Kit) —
+  impossible in Expo Go; needs a dev build. Deferred; fade masks cover the
+  classic look meanwhile. `image.cutout` field already exists in the model.
+- Bundled display fonts (§4) — still system fonts via matchFont.
+- Asset persistence: registry is in-memory; picked-photo URIs live in the
+  picker cache. Durable copies land with M6 local save (expo-file-system).
+- Eraser only erases the SELECTED drawing (by design for now).
+
+---
+
+# Earlier handoff notes (2026-08-31 daytime)
 
 Context for Claude Code (or any developer) picking this up locally. The spec
 in `CLAUDE.md` is the source of truth for scope and build order; this file is
