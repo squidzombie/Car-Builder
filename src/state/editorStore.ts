@@ -1,0 +1,276 @@
+import { create } from 'zustand'
+import { produce } from 'immer'
+import type { CardDocument, Color, Layer, Paint } from '../model/types'
+import { CARD_H, CARD_W, defaultTransform } from '../model/types'
+
+// Editor state (CLAUDE.md §4): the document plus selection, side, and an
+// undo/redo command stack. History is snapshot-based — immer's structural
+// sharing makes each entry cheap, and CardDocument is pure JSON so a
+// snapshot can never go stale.
+
+export const HISTORY_DEPTH = 50
+const MAX_RECENTS = 12
+
+export type SideName = 'front' | 'back'
+
+let idCounter = 0
+/** Unique-enough layer id: readable prefix + time + counter. */
+export function newLayerId(prefix: string): string {
+  idCounter += 1
+  return `${prefix}-${Date.now().toString(36)}-${idCounter.toString(36)}`
+}
+
+export type EditorState = {
+  doc: CardDocument
+  side: SideName
+  selectedId: string | null
+  past: CardDocument[]
+  future: CardDocument[]
+
+  loadDoc: (doc: CardDocument) => void
+  setSide: (side: SideName) => void
+  select: (id: string | null) => void
+
+  undo: () => void
+  redo: () => void
+
+  /**
+   * Mark the start of a continuous gesture (drag/pinch). The next transient
+   * update pushes ONE history entry, so the whole gesture undoes in one step.
+   * A gesture that never moves adds nothing.
+   */
+  beginGesture: () => void
+
+  /** One undoable command mutating the document. */
+  apply: (mutate: (doc: CardDocument) => void) => void
+  /** Live update during a gesture — no history entry (see beginGesture). */
+  applyTransient: (mutate: (doc: CardDocument) => void) => void
+
+  addLayer: (layer: Layer) => void
+  deleteLayer: (id: string) => void
+  duplicateLayer: (id: string) => void
+  /** Move a layer within the stack; dir +1 = toward the top (end of array). */
+  moveLayer: (id: string, dir: 1 | -1) => void
+  renameLayer: (id: string, name: string) => void
+  setLayerProps: (
+    id: string,
+    patch: Partial<Pick<Layer, 'opacity' | 'blendMode' | 'locked' | 'visible'>>,
+  ) => void
+  updateLayer: (
+    id: string,
+    mutate: (layer: Layer) => void,
+    opts?: { transient?: boolean },
+  ) => void
+
+  pinColor: (color: Color) => void
+  unpinColor: (color: Color) => void
+  pushRecentColor: (color: Color) => void
+}
+
+export function findLayer(doc: CardDocument, side: SideName, id: string): Layer | undefined {
+  return doc[side].layers.find((l) => l.id === id)
+}
+
+export function createEditorStore(initialDoc: CardDocument) {
+  return create<EditorState>()((set, get) => {
+    // Set by beginGesture, consumed by the first transient change after it.
+    let pendingGestureSnapshot: CardDocument | null = null
+
+    const commit = (next: CardDocument) => {
+      const { doc, past } = get()
+      if (next === doc) return
+      pendingGestureSnapshot = null
+      set({ doc: next, past: [...past, doc].slice(-HISTORY_DEPTH), future: [] })
+    }
+
+    const apply = (mutate: (doc: CardDocument) => void) => {
+      const { doc } = get()
+      const next = produce(doc, (draft) => {
+        mutate(draft)
+        draft.meta.updatedAt = new Date().toISOString()
+      })
+      commit(next)
+    }
+
+    const applyTransient = (mutate: (doc: CardDocument) => void) => {
+      const { doc, past } = get()
+      const next = produce(doc, mutate)
+      if (next === doc) return
+      if (pendingGestureSnapshot) {
+        set({
+          doc: next,
+          past: [...past, pendingGestureSnapshot].slice(-HISTORY_DEPTH),
+          future: [],
+        })
+        pendingGestureSnapshot = null
+      } else {
+        set({ doc: next })
+      }
+    }
+
+    const mutateLayer = (id: string, mutate: (layer: Layer) => void) => (doc: CardDocument) => {
+      const layer = doc[get().side].layers.find((l) => l.id === id)
+      if (layer) mutate(layer)
+    }
+
+    return {
+      doc: initialDoc,
+      side: 'front',
+      selectedId: null,
+      past: [],
+      future: [],
+
+      loadDoc: (doc) => {
+        pendingGestureSnapshot = null
+        set({ doc, side: 'front', selectedId: null, past: [], future: [] })
+      },
+      setSide: (side) => set({ side, selectedId: null }),
+      select: (id) => set({ selectedId: id }),
+
+      undo: () => {
+        const { doc, past, future } = get()
+        if (past.length === 0) return
+        pendingGestureSnapshot = null
+        set({
+          doc: past[past.length - 1],
+          past: past.slice(0, -1),
+          future: [doc, ...future],
+        })
+      },
+      redo: () => {
+        const { doc, past, future } = get()
+        if (future.length === 0) return
+        pendingGestureSnapshot = null
+        set({
+          doc: future[0],
+          past: [...past, doc].slice(-HISTORY_DEPTH),
+          future: future.slice(1),
+        })
+      },
+
+      beginGesture: () => {
+        pendingGestureSnapshot = get().doc
+      },
+
+      apply,
+      applyTransient,
+
+      addLayer: (layer) => {
+        apply((doc) => {
+          doc[get().side].layers.push(layer)
+        })
+        set({ selectedId: layer.id })
+      },
+
+      deleteLayer: (id) => {
+        apply((doc) => {
+          const layers = doc[get().side].layers
+          const i = layers.findIndex((l) => l.id === id)
+          if (i >= 0) layers.splice(i, 1)
+        })
+        if (get().selectedId === id) set({ selectedId: null })
+      },
+
+      duplicateLayer: (id) => {
+        const source = findLayer(get().doc, get().side, id)
+        if (!source) return
+        const copy: Layer = JSON.parse(JSON.stringify(source))
+        copy.id = newLayerId(source.type)
+        copy.name = `${source.name} copy`
+        // nudge so the copy is visibly a new object, not a rendering glitch
+        // (full-card fills stay put — a nudged fill would leave a gap)
+        if (source.type !== 'fill') {
+          copy.transform = { ...copy.transform, x: copy.transform.x + 24, y: copy.transform.y + 24 }
+        }
+        apply((doc) => {
+          const layers = doc[get().side].layers
+          const i = layers.findIndex((l) => l.id === id)
+          layers.splice(i + 1, 0, copy)
+        })
+        set({ selectedId: copy.id })
+      },
+
+      moveLayer: (id, dir) => {
+        apply((doc) => {
+          const layers = doc[get().side].layers
+          const i = layers.findIndex((l) => l.id === id)
+          const j = i + dir
+          if (i < 0 || j < 0 || j >= layers.length) return
+          const [layer] = layers.splice(i, 1)
+          layers.splice(j, 0, layer)
+        })
+      },
+
+      renameLayer: (id, name) => {
+        const trimmed = name.trim()
+        if (!trimmed) return
+        apply(mutateLayer(id, (l) => (l.name = trimmed)))
+      },
+
+      setLayerProps: (id, patch) => {
+        apply(mutateLayer(id, (l) => Object.assign(l, patch)))
+      },
+
+      updateLayer: (id, mutate, opts) => {
+        if (opts?.transient) applyTransient(mutateLayer(id, mutate))
+        else apply(mutateLayer(id, mutate))
+      },
+
+      pinColor: (color) => {
+        apply((doc) => {
+          if (!doc.palette.pinned.includes(color)) doc.palette.pinned.push(color)
+        })
+      },
+      unpinColor: (color) => {
+        apply((doc) => {
+          doc.palette.pinned = doc.palette.pinned.filter((c) => c !== color)
+        })
+      },
+      // recents are a convenience trail, not an edit — no history entry
+      pushRecentColor: (color) => {
+        applyTransient((doc) => {
+          doc.palette.recents = [
+            color,
+            ...doc.palette.recents.filter((c) => c !== color),
+          ].slice(0, MAX_RECENTS)
+        })
+      },
+    }
+  })
+}
+
+/** Default fill layer for the "add layer" flow (M2). */
+export function makeFillLayer(paint: Paint): Layer {
+  return {
+    id: newLayerId('fill'),
+    name: 'Fill',
+    type: 'fill',
+    transform: defaultTransform(),
+    opacity: 1,
+    blendMode: 'srcOver',
+    locked: false,
+    visible: true,
+    fill: { paint },
+  }
+}
+
+/** Default shape layer, centered on the card (M2). */
+export function makeShapeLayer(shapeId: string, paint: Paint, size = 320): Layer {
+  return {
+    id: newLayerId('shape'),
+    name: shapeId.charAt(0).toUpperCase() + shapeId.slice(1),
+    type: 'shape',
+    transform: {
+      x: (CARD_W - size) / 2,
+      y: (CARD_H - size) / 2,
+      rotation: 0,
+      scaleX: 1,
+      scaleY: 1,
+    },
+    opacity: 1,
+    blendMode: 'srcOver',
+    locked: false,
+    visible: true,
+    shape: { shapeId, paint, w: size, h: size },
+  }
+}

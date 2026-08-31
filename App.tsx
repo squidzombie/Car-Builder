@@ -1,27 +1,42 @@
-import React, { useMemo } from 'react'
-import { StyleSheet, Text, View, useWindowDimensions } from 'react-native'
+import React, { useState } from 'react'
+import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native'
 import { StatusBar } from 'expo-status-bar'
-import { demoCard } from './src/templates/demo'
-import { deserializeCard, serializeCard } from './src/model/serialize'
 import { useTilt } from './src/view/useTilt'
 import { TiltCard } from './src/view/TiltCard'
+import { EditorScreen } from './src/editor/EditorScreen'
+import { useEditor } from './src/state/useEditor'
 
-// M0/M1 checkpoint app: load a hand-written template through the JSON
-// round-trip, render it with the pure CardRenderer, drive it with tilt.
+// Two screens sharing one document store: the tilting preview (the magic
+// moment, and the app's default view) and the M2 editor. Edits show up in
+// the preview instantly because both read the same doc.
 export default function App() {
+  const [screen, setScreen] = useState<'preview' | 'edit'>('preview')
+  return (
+    <>
+      <StatusBar style="light" />
+      {screen === 'preview' ? (
+        <PreviewScreen onEdit={() => setScreen('edit')} />
+      ) : (
+        <EditorScreen onPreview={() => setScreen('preview')} />
+      )}
+    </>
+  )
+}
+
+function PreviewScreen({ onEdit }: { onEdit: () => void }) {
   const { width } = useWindowDimensions()
   const { view, panHandlers } = useTilt()
-
-  // Round-trip on load so a serialization bug is impossible to miss.
-  const doc = useMemo(() => deserializeCard(serializeCard(demoCard())), [])
+  const doc = useEditor((s) => s.doc)
 
   const cardWidth = Math.min(width - 48, 380)
 
   return (
     <View style={styles.root} {...panHandlers}>
-      <StatusBar style="light" />
       <TiltCard doc={doc} view={view} width={cardWidth} />
       <View style={styles.controls}>
+        <Pressable style={styles.editButton} onPress={onEdit} hitSlop={6}>
+          <Text style={styles.editButtonText}>Edit card</Text>
+        </Pressable>
         <Text style={styles.hint}>Tilt or drag to shine • tap to flip</Text>
       </View>
     </View>
@@ -39,7 +54,14 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 48,
     alignItems: 'center',
-    gap: 8,
+    gap: 10,
   },
+  editButton: {
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 20,
+    backgroundColor: '#1c2233',
+  },
+  editButtonText: { color: '#c9d6ea', fontSize: 14 },
   hint: { color: '#5a6478', fontSize: 12 },
 })
