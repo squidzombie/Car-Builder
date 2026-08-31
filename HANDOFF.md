@@ -49,16 +49,47 @@ committed in `acd8c1e`.
   card is now fitted to the measured canvas-area height (it used to
   overflow on top of the toolbar and steal its taps).
 
+## Second M2 slice (2026-08-31, afternoon)
+
+All emulator-verified unless noted:
+
+- **Path-accurate hit testing** (`bounds.ts` + `shapeHit.ts`): shape hits
+  refined by Skia `path.contains` (injected, bounds.ts stays pure);
+  transparent-fill shapes (border frames) hit only near their outline;
+  stamps hit per instance; paths hit near the stroke; taps outside the
+  card hit nothing (reliable deselect). The demo "Foil border" no longer
+  shadows the canvas.
+- **Canvas zoom/pan** (user request): two fingers with nothing selected
+  zoom (1–8x) + pan the canvas about the finger midpoint; one finger pans
+  while zoomed; % chip resets. Two fingers WITH a selection still
+  transform the layer.
+- **Rotation snap** to 0/±90/180 within 3° during twist.
+- **Starter palettes** (§6): 34 sets in `src/model/starterPalettes.ts`,
+  loaded via chips in the picker; `loadPalette` appends unique, one undo.
+- **§12 finish screenshots DONE**: `npm run finish-shots` renders all 17
+  presets × 3 tilts through CanvasKit into docs/finishes/ (51 PNGs
+  committed). Re-run after any shader/preset change.
+
+## Known open issue
+
+- **Pin drag-to-reorder doesn't fire on device** (`PinnedGrid` in
+  ColorPicker.tsx). Root cause isolated with on-device logging:
+  `measureInWindow` on the grid returns a y ~54dp above where the row
+  actually renders (Expo Go, Pixel_7 emulator), so `indexAt` computes -1
+  and the whole gesture no-ops (tap-to-apply and hold-to-unpin on pins are
+  affected the same way). The store action `reorderPins` is correct and
+  unit-tested. Next idea: stop using measureInWindow — give each swatch
+  its own small responder (or Pressables + a grid-level drag overlay), or
+  measure relative to the sheet root. Everything else in the picker works.
+
 ## Still open in M2
 
-- Drag-reorder of pinned swatches (§6 says drag; long-press flows exist).
-- Starter palettes (~30 team-color sets) — data-only, §6.
-- Canvas hit-testing is AABB-based, so a full-card frame shape (demo "Foil
-  border") shadows every canvas tap; layer-panel selection is the
-  workaround. Consider path-accurate hit testing for shape layers.
-- Possible polish: rotation snap at 0/90/180/270 during twist.
+- Fix the pin-grid gesture issue above.
 - `SkPath.*` deprecation warnings from react-native-skia 2.6 (strokePath,
   renderer, shapes): migrate to `Skia.PathBuilder` in a maintenance pass.
+- Fast Refresh got the app into a stale half-refreshed state twice during
+  this session (`ReferenceError: SweepGradient doesn't exist` from an old
+  tree). When edits seem to not apply: dev menu (keyevent 82) → Reload.
 
 ## User priorities to keep in mind
 

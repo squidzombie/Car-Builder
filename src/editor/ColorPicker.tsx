@@ -21,6 +21,7 @@ import {
   hsvToRgb,
 } from '../model/color'
 import { useEditor } from '../state/useEditor'
+import { STARTER_PALETTES } from '../model/starterPalettes'
 
 // Color picker (CLAUDE.md §6): hue wheel + saturation/value square, hex
 // input, alpha slider, pinned swatches, recents, eyedropper. Rendered as a
@@ -321,21 +322,183 @@ export function ColorPicker({ value, onChange, onGestureStart, onClose, onEyedro
           </View>
         </View>
 
+        <View style={styles.swatchSection}>
+          <Text style={styles.swatchLabel}>Pinned · drag to reorder, hold to remove</Text>
+          {pinned.length === 0 ? (
+            <Text style={styles.swatchEmpty}>☆ pins the current color</Text>
+          ) : (
+            <PinnedGrid colors={pinned} onPick={pickSwatch} />
+          )}
+        </View>
         <SwatchRow
-          label="Pinned"
-          colors={pinned}
-          emptyHint="☆ pins the current color"
-          onPick={pickSwatch}
-          onLongPress={(c) => useEditor.getState().unpinColor(c)}
-        />
-        <SwatchRow
-          label="Recent"
+          label="Recent · hold to pin"
           colors={recents}
           emptyHint="colors you use land here"
           onPick={pickSwatch}
           onLongPress={(c) => useEditor.getState().pinColor(c)}
         />
+        <View style={styles.swatchSection}>
+          <Text style={styles.swatchLabel}>Starter palettes · tap to add to pins</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <View style={styles.swatchStrip}>
+              {STARTER_PALETTES.map((p) => (
+                <Pressable
+                  key={p.id}
+                  style={styles.paletteChip}
+                  onPress={() => useEditor.getState().loadPalette(p.colors)}
+                >
+                  <Text style={styles.paletteName} numberOfLines={1}>
+                    {p.name}
+                  </Text>
+                  <View style={styles.paletteDots}>
+                    {p.colors.map((c) => (
+                      <View key={c} style={[styles.paletteDot, { backgroundColor: c }]} />
+                    ))}
+                  </View>
+                </Pressable>
+              ))}
+            </View>
+          </ScrollView>
+        </View>
       </View>
+    </View>
+  )
+}
+
+// Pinned swatches as a wrap grid with drag-to-reorder (§6). Tap applies,
+// hold ~450ms removes the pin, dragging past slop lifts the swatch and
+// drops it at the hovered slot (committed as one undo step on release).
+// swatchBack is 30px with an 8px grid gap
+const PIN_SLOT = 38
+const PIN_CELL = 30
+
+function PinnedGrid({ colors, onPick }: { colors: Color[]; onPick: (c: Color) => void }) {
+  const [drag, setDrag] = useState<{ from: number; x: number; y: number } | null>(null)
+  const colorsRef = useRef(colors)
+  colorsRef.current = colors
+  const dragRef = useRef(drag)
+  dragRef.current = drag
+  const gridRef = useRef<View>(null)
+  // window-relative grid origin + width; touch events use pageX/pageY
+  // because locationX is relative to the child swatch under the finger
+  const grid = useRef({ x: 0, y: 0, w: 0 })
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const session = useRef<{ index: number; consumed: boolean } | null>(null)
+
+  const clearTimer = () => {
+    if (timer.current) {
+      clearTimeout(timer.current)
+      timer.current = null
+    }
+  }
+
+  const measure = () => {
+    gridRef.current?.measureInWindow((x, y, w) => {
+      grid.current = { x, y, w }
+    })
+  }
+
+  const localOf = (pageX: number, pageY: number) => ({
+    x: pageX - grid.current.x,
+    y: pageY - grid.current.y,
+  })
+
+  const indexAt = (x: number, y: number) => {
+    const cols = Math.max(1, Math.floor(grid.current.w / PIN_SLOT))
+    const col = Math.floor(x / PIN_SLOT)
+    const row = Math.floor(y / PIN_SLOT)
+    if (col < 0 || col >= cols || row < 0) return -1
+    const i = row * cols + col
+    return i < colorsRef.current.length ? i : -1
+  }
+
+  const pan = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onPanResponderGrant: (e) => {
+          // re-measure NOW: the sheet can shift after mount without firing
+          // the grid's own onLayout, leaving the cached origin stale. The
+          // session starts in the measure callback (lands within a frame).
+          const { pageX, pageY } = e.nativeEvent
+          session.current = null
+          gridRef.current?.measureInWindow((x, y, w) => {
+            grid.current = { x, y, w }
+            const i = indexAt(pageX - x, pageY - y)
+            session.current = i >= 0 ? { index: i, consumed: false } : null
+            if (i >= 0) {
+              timer.current = setTimeout(() => {
+                const s = session.current
+                if (s && !s.consumed && !dragRef.current) {
+                  s.consumed = true
+                  useEditor.getState().unpinColor(colorsRef.current[s.index])
+                }
+              }, 450)
+            }
+          })
+        },
+        onPanResponderMove: (e, g) => {
+          const s = session.current
+          if (!s || s.consumed) return
+          if (!dragRef.current && Math.abs(g.dx) <= 6 && Math.abs(g.dy) <= 6) return
+          clearTimer()
+          const p = localOf(e.nativeEvent.pageX, e.nativeEvent.pageY)
+          setDrag({ from: s.index, x: p.x, y: p.y })
+        },
+        onPanResponderRelease: (e) => {
+          clearTimer()
+          const s = session.current
+          session.current = null
+          const d = dragRef.current
+          setDrag(null)
+          if (!s || s.consumed) return
+          if (d) {
+            const p = localOf(e.nativeEvent.pageX, e.nativeEvent.pageY)
+            const to = indexAt(p.x, p.y)
+            if (to >= 0 && to !== d.from) useEditor.getState().reorderPins(d.from, to)
+          } else {
+            onPick(colorsRef.current[s.index])
+          }
+        },
+        onPanResponderTerminate: () => {
+          clearTimer()
+          session.current = null
+          setDrag(null)
+        },
+      }),
+    // handlers read live state through refs
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  )
+
+  const hover = drag ? indexAt(drag.x, drag.y) : -1
+
+  return (
+    <View ref={gridRef} style={styles.pinGrid} onLayout={measure} {...pan.panHandlers}>
+      {colors.map((c, i) => (
+        <View
+          key={`${c}-${i}`}
+          style={[
+            styles.swatchBack,
+            drag && i === drag.from && styles.pinLifted,
+            hover === i && drag && i !== drag.from && styles.pinHover,
+          ]}
+        >
+          <View style={[styles.swatch, { backgroundColor: c }]} />
+        </View>
+      ))}
+      {drag ? (
+        <View
+          pointerEvents="none"
+          style={[
+            styles.swatchBack,
+            styles.pinFloating,
+            { left: drag.x - PIN_CELL / 2, top: drag.y - PIN_CELL / 2 },
+          ]}
+        >
+          <View style={[styles.swatch, { backgroundColor: colors[drag.from] }]} />
+        </View>
+      ) : null}
     </View>
   )
 }
@@ -462,4 +625,25 @@ const styles = StyleSheet.create({
     borderColor: '#2a3554',
   },
   swatch: { flex: 1 },
+  pinGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingVertical: 2 },
+  pinLifted: { opacity: 0.25 },
+  pinHover: { borderColor: '#4da3ff', borderWidth: 2 },
+  pinFloating: {
+    position: 'absolute',
+    width: PIN_CELL,
+    height: PIN_CELL,
+    borderColor: '#ffffff',
+    elevation: 6,
+  },
+  paletteChip: {
+    backgroundColor: '#1c2233',
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    gap: 5,
+    width: 118,
+  },
+  paletteName: { color: '#c9d6ea', fontSize: 11 },
+  paletteDots: { flexDirection: 'row', gap: 4 },
+  paletteDot: { width: 14, height: 14, borderRadius: 4, borderWidth: StyleSheet.hairlineWidth, borderColor: '#3d4a6e' },
 })

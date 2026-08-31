@@ -16,6 +16,8 @@ export type Transform = Layer['transform']
 
 export const MIN_SCALE = 0.05
 export const MAX_SCALE = 20
+/** Twist snaps to 0/±90/180 when within this many degrees. */
+export const ROTATION_SNAP_DEG = 3
 
 export function pinchGeometry(a: TouchPoint, b: TouchPoint) {
   const dx = b.x - a.x
@@ -82,6 +84,10 @@ export function applyPinch(start: PinchStart, a: TouchPoint, b: TouchPoint): Tra
   const scaleY = t0.scaleY * f
   let rotation = t0.rotation + ((g.angle - start.angle) * 180) / Math.PI
   rotation = ((((rotation + 180) % 360) + 360) % 360) - 180 // normalize to (-180, 180]
+  const cardinal = Math.round(rotation / 90) * 90
+  if (Math.abs(rotation - cardinal) <= ROTATION_SNAP_DEG) {
+    rotation = cardinal === -180 ? 180 : cardinal
+  }
 
   // keep the anchor under the (possibly panned) finger midpoint
   const rad = (rotation * Math.PI) / 180

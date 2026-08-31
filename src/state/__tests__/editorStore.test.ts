@@ -152,4 +152,29 @@ describe('editor store', () => {
     const doc = store.getState().doc
     expect(deserializeCard(serializeCard(doc))).toEqual(doc)
   })
+
+  test('loadPalette appends without duplicates, as one undo step', () => {
+    const store = freshStore()
+    store.getState().pinColor('#111111')
+    const depth = store.getState().past.length
+    store.getState().loadPalette(['#111111', '#222222', '#333333'])
+    let s = store.getState()
+    expect(s.doc.palette.pinned).toEqual(['#111111', '#222222', '#333333'])
+    expect(s.past.length).toBe(depth + 1)
+    store.getState().undo()
+    expect(store.getState().doc.palette.pinned).toEqual(['#111111'])
+  })
+
+  test('reorderPins moves a swatch and rejects bad indices', () => {
+    const store = freshStore()
+    store.getState().loadPalette(['#aa0000', '#00bb00', '#0000cc'])
+    store.getState().reorderPins(0, 2)
+    expect(store.getState().doc.palette.pinned).toEqual(['#00bb00', '#0000cc', '#aa0000'])
+    const depth = store.getState().past.length
+    store.getState().reorderPins(1, 1)
+    store.getState().reorderPins(-1, 0)
+    store.getState().reorderPins(0, 9)
+    expect(store.getState().doc.palette.pinned).toEqual(['#00bb00', '#0000cc', '#aa0000'])
+    expect(store.getState().past.length).toBe(depth)
+  })
 })

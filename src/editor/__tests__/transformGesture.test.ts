@@ -103,6 +103,19 @@ test('rotation stays normalized to (-180, 180]', () => {
   expect(next.rotation).toBeCloseTo(-160)
 })
 
+test('twist snaps to cardinal angles within the snap window', () => {
+  const layer = shapeLayer()
+  const start = beginPinch(layer, doc, { x: 100, y: 150 }, { x: 200, y: 150 })!
+  // ~88°: rotate the touch pair by 88° around the midpoint
+  const rad = (88 * Math.PI) / 180
+  const rot = (p: { x: number; y: number }) => ({
+    x: 150 + (p.x - 150) * Math.cos(rad) - (p.y - 150) * Math.sin(rad),
+    y: 150 + (p.x - 150) * Math.sin(rad) + (p.y - 150) * Math.cos(rad),
+  })
+  const next = applyPinch(start, rot({ x: 100, y: 150 }), rot({ x: 200, y: 150 }))
+  expect(next.rotation).toBe(90)
+})
+
 test('degenerate starts return null', () => {
   expect(beginPinch(shapeLayer(), doc, { x: 150, y: 150 }, { x: 150, y: 150 })).toBeNull()
   expect(

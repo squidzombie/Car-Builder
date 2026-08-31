@@ -65,6 +65,10 @@ export type EditorState = {
   pinColor: (color: Color) => void
   unpinColor: (color: Color) => void
   pushRecentColor: (color: Color) => void
+  /** Append a starter palette's colors to pins (§6: appends, never replaces). */
+  loadPalette: (colors: Color[]) => void
+  /** Move a pinned swatch to a new index (drag reorder, §6). */
+  reorderPins: (from: number, to: number) => void
 }
 
 export function findLayer(doc: CardDocument, side: SideName, id: string): Layer | undefined {
@@ -226,6 +230,26 @@ export function createEditorStore(initialDoc: CardDocument) {
           doc.palette.pinned = doc.palette.pinned.filter((c) => c !== color)
         })
       },
+      loadPalette: (colors) => {
+        // guard first: apply() always stamps updatedAt, so a no-op mutate
+        // would still push a history entry
+        if (colors.every((c) => get().doc.palette.pinned.includes(c))) return
+        apply((doc) => {
+          for (const c of colors) {
+            if (!doc.palette.pinned.includes(c)) doc.palette.pinned.push(c)
+          }
+        })
+      },
+
+      reorderPins: (from, to) => {
+        const pins = get().doc.palette.pinned
+        if (from === to || from < 0 || from >= pins.length || to < 0 || to >= pins.length) return
+        apply((doc) => {
+          const [c] = doc.palette.pinned.splice(from, 1)
+          doc.palette.pinned.splice(to, 0, c)
+        })
+      },
+
       // recents are a convenience trail, not an edit — no history entry
       pushRecentColor: (color) => {
         applyTransient((doc) => {

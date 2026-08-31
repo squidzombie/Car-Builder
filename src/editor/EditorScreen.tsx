@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { PanResponder, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native'
-import { Canvas, Skia, useCanvasRef } from '@shopify/react-native-skia'
+import { Canvas, Group, Skia, useCanvasRef } from '@shopify/react-native-skia'
 import { CardRenderer } from '../renderer/CardRenderer'
 import { defaultViewState } from '../model/types'
 import type { Color } from '../model/types'
@@ -8,16 +8,21 @@ import { rgbaToHex } from '../model/color'
 import { useEditor } from '../state/useEditor'
 import { findLayer } from '../state/editorStore'
 import { hitTest, layerBounds } from './bounds'
-import { applyPinch, beginPinch, type PinchStart } from './transformGesture'
+import { shapeContains } from './shapeHit'
+import { applyPinch, beginPinch, pinchGeometry, type PinchStart } from './transformGesture'
 import { layerColor, setLayerColor } from './layerColor'
 import { ColorPicker } from './ColorPicker'
 import { LayerPanel } from './LayerPanel'
 
-// Editor core screen (M2, CLAUDE.md §4): flat card canvas with tap-to-select,
-// one-finger drag-to-move, two-finger pinch-to-scale + twist-to-rotate,
-// undo/redo, front/back switch, color picker with eyedropper, layer panel.
+// Editor core screen (M2, CLAUDE.md §4): card canvas with tap-to-select,
+// one-finger drag-to-move, two-finger pinch/twist on the SELECTION —
+// or, with nothing selected, two-finger zoom + pan of the CANVAS for
+// fine placement work (one finger pans while zoomed; ⤢ chip resets).
 
 const TAP_SLOP = 8
+const MAX_ZOOM = 8
+
+type CanvasView = { scale: number; x: number; y: number }
 
 export function EditorScreen({ onPreview }: { onPreview: () => void }) {
   const { width } = useWindowDimensions()
@@ -28,17 +33,23 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
   const canUndo = useEditor((s) => s.past.length > 0)
   const canRedo = useEditor((s) => s.future.length > 0)
 
-  // Fit the card to BOTH the screen width and the measured canvas-area
-  // height — otherwise the tall card overflows its flex slot and sits on
-  // top of the toolbar, stealing its taps (first emulator test).
-  const [areaH, setAreaH] = useState(0)
+  const docW = doc.size.w
+  const docH = doc.size.h
+
+  // ---- canvas view (zoom/pan) ----
+  const [area, setArea] = useState({ w: 0, h: 0 })
   const maxCardWidth = Math.min(width - 32, 380)
-  const cardWidth =
-    areaH > 0
-      ? Math.min(maxCardWidth, ((areaH - 16) * doc.size.w) / doc.size.h)
-      : maxCardWidth
-  const scale = cardWidth / doc.size.w
-  const cardHeight = doc.size.h * scale
+  const base =
+    area.h > 0
+      ? Math.min(maxCardWidth / docW, (area.h - 16) / docH)
+      : maxCardWidth / docW
+  const [view, setView] = useState<CanvasView>({ scale: 1, x: 0, y: 0 })
+  const viewRef = useRef(view)
+  viewRef.current = view
+
+  const total = base * view.scale
+  const originX = (area.w - docW * total) / 2 + view.x
+  const originY = (area.h - docH * total) / 2 + view.y
 
   const selected = selectedId
     ? doc[side].layers.find((l) => l.id === selectedId) ?? null
@@ -101,41 +112,80 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
   const pinchLayerId = useRef<string | null>(null)
   const gestureStarted = useRef(false) // beginGesture called this session
   const sessionTransformed = useRef(false)
+  const canvasPinch = useRef<{
+    dist: number
+    mid: { x: number; y: number }
+    scale: number
+    originX: number
+    originY: number
+  } | null>(null)
+  const panFrom = useRef<CanvasView | null>(null)
 
-  const panResponder = useMemo(
-    () =>
-      PanResponder.create({
-        onStartShouldSetPanResponder: () => true,
-        onPanResponderGrant: (e) => {
-          pinchStart.current = null
-          pinchLayerId.current = null
-          gestureStarted.current = false
-          sessionTransformed.current = false
-          drag.current = null
-          if (eyedroppingRef.current) return
-          const s = useEditor.getState()
-          const x = e.nativeEvent.locationX / scale
-          const y = e.nativeEvent.locationY / scale
-          const sel = s.selectedId ? findLayer(s.doc, s.side, s.selectedId) : undefined
-          if (sel && !sel.locked) {
-            const b = layerBounds(sel, s.doc)
-            if (x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h) {
-              drag.current = { id: sel.id, startX: sel.transform.x, startY: sel.transform.y }
-              s.beginGesture()
-              gestureStarted.current = true
-            }
+  const panResponder = useMemo(() => {
+    const origin = (v: CanvasView) => {
+      const t = base * v.scale
+      return {
+        t,
+        x: (area.w - docW * t) / 2 + v.x,
+        y: (area.h - docH * t) / 2 + v.y,
+      }
+    }
+    /** Clamp scale and offsets so the card never gets lost off-screen. */
+    const clampView = (scale: number, offX: number, offY: number): CanvasView => {
+      const s = Math.max(1, Math.min(MAX_ZOOM, scale))
+      if (s === 1) return { scale: 1, x: 0, y: 0 }
+      const cw = docW * base * s
+      const ch = docH * base * s
+      const cX = (area.w - cw) / 2
+      const cY = (area.h - ch) / 2
+      const ox = cw >= area.w ? Math.max(area.w - cw, Math.min(0, cX + offX)) : cX
+      const oy = ch >= area.h ? Math.max(area.h - ch, Math.min(0, cY + offY)) : cY
+      return { scale: s, x: ox - cX, y: oy - cY }
+    }
+
+    return PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onPanResponderGrant: (e) => {
+        pinchStart.current = null
+        pinchLayerId.current = null
+        canvasPinch.current = null
+        gestureStarted.current = false
+        sessionTransformed.current = false
+        drag.current = null
+        panFrom.current = { ...viewRef.current }
+        if (eyedroppingRef.current) return
+        const s = useEditor.getState()
+        const o = origin(viewRef.current)
+        const x = (e.nativeEvent.locationX - o.x) / o.t
+        const y = (e.nativeEvent.locationY - o.y) / o.t
+        const sel = s.selectedId ? findLayer(s.doc, s.side, s.selectedId) : undefined
+        if (sel && !sel.locked) {
+          const b = layerBounds(sel, s.doc)
+          if (x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h) {
+            drag.current = { id: sel.id, startX: sel.transform.x, startY: sel.transform.y }
+            s.beginGesture()
+            gestureStarted.current = true
           }
-        },
-        onPanResponderMove: (e, g) => {
-          const s = useEditor.getState()
-          const touches = e.nativeEvent.touches
+        }
+      },
+      onPanResponderMove: (e, g) => {
+        const s = useEditor.getState()
+        const touches = e.nativeEvent.touches
 
-          // two fingers anywhere on the canvas: pinch/twist the selection
-          if (touches.length >= 2) {
-            const sel = s.selectedId ? findLayer(s.doc, s.side, s.selectedId) : undefined
-            if (!sel || sel.locked) return
-            const a = { x: touches[0].locationX / scale, y: touches[0].locationY / scale }
-            const b = { x: touches[1].locationX / scale, y: touches[1].locationY / scale }
+        if (touches.length >= 2) {
+          const o = origin(viewRef.current)
+          const sel = s.selectedId ? findLayer(s.doc, s.side, s.selectedId) : undefined
+
+          // selection: two fingers transform the layer
+          if (sel && !sel.locked) {
+            const a = {
+              x: (touches[0].locationX - o.x) / o.t,
+              y: (touches[0].locationY - o.y) / o.t,
+            }
+            const b = {
+              x: (touches[1].locationX - o.x) / o.t,
+              y: (touches[1].locationY - o.y) / o.t,
+            }
             if (!pinchStart.current || pinchLayerId.current !== sel.id) {
               if (!gestureStarted.current) {
                 s.beginGesture()
@@ -152,48 +202,95 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
             return
           }
 
-          // a finger lifted mid-pinch: freeze until the session ends
-          if (pinchStart.current) return
+          // no selection: two fingers zoom/pan the canvas
+          const geom = pinchGeometry(
+            { x: touches[0].locationX, y: touches[0].locationY },
+            { x: touches[1].locationX, y: touches[1].locationY },
+          )
+          if (!canvasPinch.current) {
+            if (geom.dist < 1) return
+            canvasPinch.current = {
+              dist: geom.dist,
+              mid: geom.mid,
+              scale: viewRef.current.scale,
+              originX: o.x,
+              originY: o.y,
+            }
+            drag.current = null
+            return
+          }
+          const cp = canvasPinch.current
+          const newScale = Math.max(1, Math.min(MAX_ZOOM, cp.scale * (geom.dist / cp.dist)))
+          const t0 = base * cp.scale
+          const newT = base * newScale
+          // keep the doc point that was under the start midpoint under the
+          // current midpoint
+          const docMidX = (cp.mid.x - cp.originX) / t0
+          const docMidY = (cp.mid.y - cp.originY) / t0
+          const desiredOriginX = geom.mid.x - docMidX * newT
+          const desiredOriginY = geom.mid.y - docMidY * newT
+          const cX = (area.w - docW * newT) / 2
+          const cY = (area.h - docH * newT) / 2
+          setView(clampView(newScale, desiredOriginX - cX, desiredOriginY - cY))
+          return
+        }
 
-          if (!drag.current) return
+        // a finger lifted mid-pinch: freeze until the session ends
+        if (pinchStart.current || canvasPinch.current) return
+
+        if (drag.current) {
           if (Math.abs(g.dx) <= TAP_SLOP && Math.abs(g.dy) <= TAP_SLOP) return
+          const o = origin(viewRef.current)
           const { id, startX, startY } = drag.current
           sessionTransformed.current = true
           s.updateLayer(
             id,
             (l) => {
-              l.transform.x = startX + g.dx / scale
-              l.transform.y = startY + g.dy / scale
+              l.transform.x = startX + g.dx / o.t
+              l.transform.y = startY + g.dy / o.t
             },
             { transient: true },
           )
-        },
-        onPanResponderRelease: (e, g) => {
-          const pinched = pinchStart.current !== null
-          drag.current = null
-          pinchStart.current = null
-          pinchLayerId.current = null
-          if (pinched || sessionTransformed.current) return
-          if (Math.abs(g.dx) > TAP_SLOP || Math.abs(g.dy) > TAP_SLOP) return
-          // a tap
-          const vx = e.nativeEvent.locationX
-          const vy = e.nativeEvent.locationY
-          if (eyedroppingRef.current) {
-            sampleAt(vx, vy)
-            return
-          }
-          const s = useEditor.getState()
-          const hit = hitTest(s.doc, s.side, vx / scale, vy / scale)
-          s.select(hit ? hit.id : null)
-        },
-        onPanResponderTerminate: () => {
-          drag.current = null
-          pinchStart.current = null
-          pinchLayerId.current = null
-        },
-      }),
-    [scale],
-  )
+          return
+        }
+
+        // one finger off the selection: pan the canvas while zoomed
+        if (viewRef.current.scale > 1 && panFrom.current) {
+          if (Math.abs(g.dx) <= TAP_SLOP && Math.abs(g.dy) <= TAP_SLOP) return
+          setView(clampView(panFrom.current.scale, panFrom.current.x + g.dx, panFrom.current.y + g.dy))
+        }
+      },
+      onPanResponderRelease: (e, g) => {
+        const pinched = pinchStart.current !== null || canvasPinch.current !== null
+        drag.current = null
+        pinchStart.current = null
+        pinchLayerId.current = null
+        canvasPinch.current = null
+        panFrom.current = null
+        if (pinched || sessionTransformed.current) return
+        if (Math.abs(g.dx) > TAP_SLOP || Math.abs(g.dy) > TAP_SLOP) return
+        // a tap
+        const vx = e.nativeEvent.locationX
+        const vy = e.nativeEvent.locationY
+        if (eyedroppingRef.current) {
+          sampleAt(vx, vy)
+          return
+        }
+        const s = useEditor.getState()
+        const o = origin(viewRef.current)
+        const hit = hitTest(s.doc, s.side, (vx - o.x) / o.t, (vy - o.y) / o.t, { shapeContains })
+        s.select(hit ? hit.id : null)
+      },
+      onPanResponderTerminate: () => {
+        drag.current = null
+        pinchStart.current = null
+        pinchLayerId.current = null
+        canvasPinch.current = null
+        panFrom.current = null
+      },
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [base, area.w, area.h, docW, docH])
 
   return (
     <View style={styles.root}>
@@ -238,27 +335,43 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
 
       <View
         style={styles.canvasArea}
-        onLayout={(e) => setAreaH(e.nativeEvent.layout.height)}
+        onLayout={(e) =>
+          setArea({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })
+        }
+        {...panResponder.panHandlers}
       >
-        <View style={{ width: cardWidth, height: cardHeight }} {...panResponder.panHandlers}>
-          <Canvas ref={canvasRef} style={{ width: cardWidth, height: cardHeight }}>
-            <CardRenderer doc={doc} side={side} viewState={defaultViewState()} scale={scale} />
-          </Canvas>
-          {selectionBox && !eyedropping ? (
-            <View
-              pointerEvents="none"
-              style={[
-                styles.selection,
-                {
-                  left: selectionBox.x * scale - 2,
-                  top: selectionBox.y * scale - 2,
-                  width: selectionBox.w * scale + 4,
-                  height: selectionBox.h * scale + 4,
-                },
-              ]}
-            />
-          ) : null}
-        </View>
+        {area.w > 0 && area.h > 0 ? (
+          <>
+            <Canvas ref={canvasRef} style={{ width: area.w, height: area.h }}>
+              <Group transform={[{ translateX: originX }, { translateY: originY }]}>
+                <CardRenderer doc={doc} side={side} viewState={defaultViewState()} scale={total} />
+              </Group>
+            </Canvas>
+            {selectionBox && !eyedropping ? (
+              <View
+                pointerEvents="none"
+                style={[
+                  styles.selection,
+                  {
+                    left: selectionBox.x * total + originX - 2,
+                    top: selectionBox.y * total + originY - 2,
+                    width: selectionBox.w * total + 4,
+                    height: selectionBox.h * total + 4,
+                  },
+                ]}
+              />
+            ) : null}
+            {view.scale > 1 ? (
+              <Pressable
+                style={styles.zoomChip}
+                hitSlop={6}
+                onPress={() => setView({ scale: 1, x: 0, y: 0 })}
+              >
+                <Text style={styles.zoomChipText}>{Math.round(view.scale * 100)}% ⤢</Text>
+              </Pressable>
+            ) : null}
+          </>
+        ) : null}
       </View>
 
       {selected ? (
@@ -331,13 +444,23 @@ const styles = StyleSheet.create({
   sideOptionActive: { backgroundColor: '#2a3554' },
   sideText: { color: '#7f8db0', fontSize: 13 },
   sideTextActive: { color: '#e6ecf7' },
-  canvasArea: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  canvasArea: { flex: 1, overflow: 'hidden' },
   selection: {
     position: 'absolute',
     borderWidth: 2,
     borderColor: '#4da3ff',
     borderRadius: 3,
   },
+  zoomChip: {
+    position: 'absolute',
+    right: 12,
+    bottom: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 14,
+    backgroundColor: '#1c2233ee',
+  },
+  zoomChipText: { color: '#c9d6ea', fontSize: 12, fontVariant: ['tabular-nums'] },
   propsBar: {
     flexDirection: 'row',
     alignItems: 'center',
