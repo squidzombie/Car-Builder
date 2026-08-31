@@ -100,23 +100,8 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
   const [textOpen, setTextOpen] = useState(false)
   const [fxOpen, setFxOpen] = useState(false)
 
-  // sweep the tilt while the finish sheet is open — a slow, subtle drift
-  // (user feedback: just a hint; the full effect lives in the tilt preview)
-  const [fxTilt, setFxTilt] = useState<ViewState>(defaultViewState())
-  useEffect(() => {
-    if (!fxOpen) {
-      setFxTilt(defaultViewState())
-      return
-    }
-    const start = Date.now()
-    const id = setInterval(() => {
-      const t = (Date.now() - start) / 1000
-      const tiltX = Math.sin(t * 0.22) * 0.28
-      const tiltY = Math.cos(t * 0.16) * 0.2
-      setFxTilt({ tiltX, tiltY, ...lightFromTilt(tiltX, tiltY) })
-    }, 33)
-    return () => clearInterval(id)
-  }, [fxOpen])
+  // (the finish-sheet tilt sweep lives inside EditorCanvas so its 60fps
+  // state updates re-render only the canvas, not the whole screen)
 
   const allShapes = useMemo(() => [...BUILTIN_SHAPES, ...(doc.shapes ?? [])], [doc.shapes])
   const assets = useDocImages(doc)
@@ -667,17 +652,18 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
       >
         {area.w > 0 && area.h > 0 ? (
           <>
-            <Canvas ref={canvasRef} style={{ width: area.w, height: area.h }}>
-              <Group transform={[{ translateX: originX }, { translateY: originY }]}>
-                <CardRenderer
-                  doc={doc}
-                  side={side}
-                  viewState={fxOpen ? fxTilt : defaultViewState()}
-                  assets={assets}
-                  scale={total}
-                />
-              </Group>
-            </Canvas>
+            <EditorCanvas
+              canvasRef={canvasRef}
+              width={area.w}
+              height={area.h}
+              originX={originX}
+              originY={originY}
+              doc={doc}
+              side={side}
+              assets={assets}
+              scale={total}
+              sweep={fxOpen}
+            />
             {selectionBox && !eyedropping && mode === 'select' ? (
               <View
                 pointerEvents="none"
@@ -792,6 +778,60 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
         />
       ) : null}
     </View>
+  )
+}
+
+// The card canvas, isolated so the finish-sheet tilt sweep re-renders ONLY
+// this subtree at display rate (rAF-driven, vsync-aligned) — sweeping from
+// the parent re-rendered the whole editor per frame and looked jittery.
+function EditorCanvas({
+  canvasRef,
+  width,
+  height,
+  originX,
+  originY,
+  doc,
+  side,
+  assets,
+  scale,
+  sweep,
+}: {
+  canvasRef: ReturnType<typeof useCanvasRef>
+  width: number
+  height: number
+  originX: number
+  originY: number
+  doc: Parameters<typeof CardRenderer>[0]['doc']
+  side: 'front' | 'back'
+  assets: Parameters<typeof CardRenderer>[0]['assets']
+  scale: number
+  sweep: boolean
+}) {
+  const [tilt, setTilt] = useState<ViewState>(defaultViewState())
+  useEffect(() => {
+    if (!sweep) {
+      setTilt(defaultViewState())
+      return
+    }
+    let raf = 0
+    const start = Date.now()
+    const loop = () => {
+      const t = (Date.now() - start) / 1000
+      const tiltX = Math.sin(t * 0.22) * 0.28
+      const tiltY = Math.cos(t * 0.16) * 0.2
+      setTilt({ tiltX, tiltY, ...lightFromTilt(tiltX, tiltY) })
+      raf = requestAnimationFrame(loop)
+    }
+    raf = requestAnimationFrame(loop)
+    return () => cancelAnimationFrame(raf)
+  }, [sweep])
+
+  return (
+    <Canvas ref={canvasRef} style={{ width, height }}>
+      <Group transform={[{ translateX: originX }, { translateY: originY }]}>
+        <CardRenderer doc={doc} side={side} viewState={tilt} assets={assets} scale={scale} />
+      </Group>
+    </Canvas>
   )
 }
 

@@ -3,8 +3,10 @@ import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-na
 import { StatusBar } from 'expo-status-bar'
 import { useTilt } from './src/view/useTilt'
 import { TiltCard } from './src/view/TiltCard'
+import { TemplateChooser } from './src/view/TemplateChooser'
 import { useDocImages } from './src/view/useDocImages'
 import { useBundledFonts } from './src/view/useBundledFonts'
+import { TEMPLATES } from './src/templates'
 import { EditorScreen } from './src/editor/EditorScreen'
 import { useEditor } from './src/state/useEditor'
 
@@ -31,6 +33,7 @@ function PreviewScreen({ onEdit }: { onEdit: () => void }) {
   const { view, panHandlers } = useTilt()
   const doc = useEditor((s) => s.doc)
   const assets = useDocImages(doc)
+  const [choosing, setChoosing] = useState(false)
 
   const cardWidth = Math.min(width - 48, 380)
 
@@ -38,11 +41,29 @@ function PreviewScreen({ onEdit }: { onEdit: () => void }) {
     <View style={styles.root} {...panHandlers}>
       <TiltCard doc={doc} view={view} width={cardWidth} assets={assets} />
       <View style={styles.controls}>
-        <Pressable style={styles.editButton} onPress={onEdit} hitSlop={6}>
-          <Text style={styles.editButtonText}>Edit card</Text>
-        </Pressable>
+        <View style={styles.buttonRow}>
+          <Pressable style={styles.editButton} onPress={onEdit} hitSlop={6}>
+            <Text style={styles.editButtonText}>Edit card</Text>
+          </Pressable>
+          <Pressable style={styles.editButton} onPress={() => setChoosing(true)} hitSlop={6}>
+            <Text style={styles.editButtonText}>New card</Text>
+          </Pressable>
+        </View>
         <Text style={styles.hint}>Tilt or drag to shine • tap to flip</Text>
       </View>
+      {choosing ? (
+        <TemplateChooser
+          onClose={() => setChoosing(false)}
+          onPick={(templateId) => {
+            const template = TEMPLATES.find((t) => t.id === templateId)
+            if (template) {
+              useEditor.getState().loadDoc(template.make(`card-${Date.now().toString(36)}`))
+              setChoosing(false)
+              onEdit()
+            }
+          }}
+        />
+      ) : null}
     </View>
   )
 }
@@ -60,6 +81,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
   },
+  buttonRow: { flexDirection: 'row', gap: 10 },
   editButton: {
     paddingHorizontal: 18,
     paddingVertical: 10,
