@@ -1,4 +1,47 @@
-# Handoff — state of the project as of 2026-08-31 (night: TestFlight live)
+# Handoff — 2026-09-01: web share viewer IN PROGRESS (mid-debug)
+
+## RESUME HERE: /c/{id} web viewer black-canvas debugging
+
+Built this session (commits pending in this WIP): web share links —
+ShareViewer (`src/web/ShareViewer.tsx`, routed via `/c/{id}` in App on
+web), Skia-web loading (`index.ts` LoadSkiaWeb + `public/canvaskit.wasm`),
+shareApi/shareConfig (Supabase upload, config placeholders — user will
+provide keys), Link button on preview (hidden until configured),
+react-native-web/react-dom installed, headless-Edge screenshot rig
+(`MSYS_NO_PATHCONV=1 node scripts/web-shot.js /c/demo out.png`; Metro
+must be running: `npx expo start`).
+
+**Debug status — the /c/demo card canvas renders BLACK on web.**
+Probes (in ShareViewer): `/c/plain` bare red rect ✓ WORKS; `/c/flat`
+full CardRenderer, static viewState, integer canvas size ✓ WORKS
+(all shaders/masks/stamps render!); `/c/demo` (real path via TiltCard +
+60fps mouse-tilt state loop) ✗ BLACK.
+
+Fixed along the way (both real bugs, keep):
+1. matchFont has no system fonts on CanvasKit → threw and blanked the
+   whole canvas → CardRenderer now falls back to a bundled typeface on
+   web (skips text layer until faces load).
+2. TiltCard's canvas height was fractional (448.0000000006) → rounded.
+   (Suspected RN-Skia-web fractional-size failure — plausible but NOT
+   yet proven to be A cause; retest cleanly.)
+
+NEXT STEPS (one variable at a time — I conflated changes late in the
+session): (1) re-run `/c/tilt` (TiltCard + STATIC view) as-is now —
+if it renders, structure is fine and the culprit is the 60fps setView
+rAF loop in ShareViewer (then try: throttle updates / gate first draw
+until fonts ready / stable object identities); if still black, strip
+Pressable + styles.card from TiltCard's web branch again (bare
+View+Canvas inside TiltCard) to separate component-boundary vs wrappers.
+Note: 3D-transform-breaks-compositing hypothesis was tested only with
+the fractional height present — retest before trusting it; ideally
+restore the Animated 3D branch if it turns out fine.
+
+Also: EAS build #3 (Build 6 fixes) is compiled & unsubmitted (user's
+choice); emulator + Metro need restarting after the reboot; machine IP
+may change again (expo start prints the new exp:// URL).
+
+---
+# Previous notes (2026-08-31 night: TestFlight live)
 
 ## Beta feedback from Max's iPhone — FIX FIRST next session
 

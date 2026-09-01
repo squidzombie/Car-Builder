@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native'
+import { Platform, Pressable, Share, StyleSheet, Text, View, useWindowDimensions } from 'react-native'
 import { StatusBar } from 'expo-status-bar'
 import * as FileSystem from 'expo-file-system/legacy'
 import * as Sharing from 'expo-sharing'
@@ -23,6 +23,15 @@ import {
   saveCard,
   saveLastOpened,
 } from './src/model/storage'
+import { ShareViewer } from './src/web/ShareViewer'
+import { shareConfigured } from './src/model/shareConfig'
+import { uploadCard } from './src/model/shareApi'
+
+// On web the app IS the share viewer: /c/{id} renders a card read-only.
+const webShareId =
+  Platform.OS === 'web' && typeof window !== 'undefined'
+    ? /^\/c\/([a-z0-9-]+)/i.exec(window.location.pathname)?.[1] ?? null
+    : null
 
 // Two screens sharing one document store: the tilting preview (the magic
 // moment, and the app's default view) and the editor. The working card
@@ -33,6 +42,7 @@ export default function App() {
   useBundledFonts()
 
   useEffect(() => {
+    if (webShareId) return // viewer mode: no local storage
     let alive = true
     ;(async () => {
       try {
@@ -54,7 +64,7 @@ export default function App() {
 
   // debounced autosave of every document change
   useEffect(() => {
-    if (!booted) return
+    if (!booted || webShareId) return
     let timer: ReturnType<typeof setTimeout> | null = null
     const unsub = useEditor.subscribe((s, prev) => {
       if (s.doc === prev.doc) return
@@ -70,6 +80,10 @@ export default function App() {
       unsub()
     }
   }, [booted])
+
+  if (webShareId) {
+    return <ShareViewer cardId={webShareId} />
+  }
 
   return (
     <>
@@ -91,7 +105,21 @@ function PreviewScreen({ onEdit }: { onEdit: () => void }) {
   const [choosing, setChoosing] = useState(false)
   const [grading, setGrading] = useState(false)
   const [exportSide, setExportSide] = useState<'front' | 'back' | null>(null)
+  const [linking, setLinking] = useState(false)
   const shownSide = useRef<'front' | 'back'>('front')
+
+  const shareLink = async () => {
+    if (linking) return
+    setLinking(true)
+    try {
+      const { link } = await uploadCard(useEditor.getState().doc)
+      await Share.share({ message: link })
+    } catch {
+      // upload is best-effort; the button re-enables either way
+    } finally {
+      setLinking(false)
+    }
+  }
 
   const cardWidth = Math.min(width - 48, 380)
 
@@ -127,6 +155,16 @@ function PreviewScreen({ onEdit }: { onEdit: () => void }) {
               {exportSide ? 'Exporting…' : 'Share'}
             </Text>
           </Pressable>
+          {shareConfigured() ? (
+            <Pressable
+              style={styles.editButton}
+              hitSlop={6}
+              disabled={linking}
+              onPress={shareLink}
+            >
+              <Text style={styles.editButtonText}>{linking ? 'Uploading…' : 'Link'}</Text>
+            </Pressable>
+          ) : null}
         </View>
         <Text style={styles.hint}>Tilt or drag to shine • tap to flip • Share exports this side</Text>
       </View>

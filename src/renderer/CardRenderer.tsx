@@ -359,9 +359,19 @@ function LayerContent({
     case 'text': {
       const t = layer.text!
       const tf = t.font !== 'system' ? getTypeface(t.font) : undefined
-      const font = tf
-        ? Skia.Font(tf, t.size)
-        : matchFont({ fontFamily: FONT_FAMILY, fontSize: t.size, fontWeight: 'bold' })
+      let font
+      if (tf) {
+        font = Skia.Font(tf, t.size)
+      } else if (Platform.OS !== 'web') {
+        font = matchFont({ fontFamily: FONT_FAMILY, fontSize: t.size, fontWeight: 'bold' })
+      } else {
+        // CanvasKit has no system fonts: fall back to a bundled face, and
+        // skip the layer until the faces finish loading (a throw here
+        // would blank the whole canvas)
+        const fallback = getTypeface('anton') ?? getTypeface('bebas')
+        if (!fallback) return null
+        font = Skia.Font(fallback, t.size)
+      }
       let x = 0
       if (t.align !== 'l') {
         const width = font.measureText(t.content).width

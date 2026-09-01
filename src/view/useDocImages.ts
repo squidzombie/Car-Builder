@@ -30,7 +30,8 @@ export function useDocImages(doc: CardDocument): Record<string, SkImage> {
     let alive = true
     for (const id of ids) {
       if (cache.has(id)) continue
-      const uri = getAssetUri(id)
+      // shared documents reference their assets by public URL directly
+      const uri = getAssetUri(id) ?? (id.startsWith('http') ? id : undefined)
       if (!uri) continue
       Skia.Data.fromURI(uri)
         .then((data) => {

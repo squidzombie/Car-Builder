@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react'
-import { Animated, Pressable, StyleSheet, View } from 'react-native'
+import { Animated, Platform, Pressable, StyleSheet, View } from 'react-native'
 import { Canvas, type SkImage } from '@shopify/react-native-skia'
 import type { CardDocument, ViewState } from '../model/types'
 import { CardRenderer } from '../renderer/CardRenderer'
@@ -33,7 +33,9 @@ export function TiltCard({
   const flipped = useRef(false)
 
   const scale = width / doc.size.w
-  const height = doc.size.h * scale
+  // integer height: RN Skia's web canvas silently renders nothing when
+  // its CSS size is fractional (found via /c/{id} viewer bring-up)
+  const height = Math.round(doc.size.h * scale)
 
   const onFlip = () => {
     flipped.current = !flipped.current
@@ -59,6 +61,31 @@ export function TiltCard({
       ? { tiltX: -view.tiltX, tiltY: view.tiltY, lightX: 1 - view.lightX, lightY: view.lightY }
       : view
 
+  const inner = (
+    <View style={[{ width, height }, mirror]}>
+      <Canvas style={{ width, height }}>
+        <CardRenderer doc={doc} side={side} viewState={sideView} assets={assets} scale={scale} />
+      </Canvas>
+    </View>
+  )
+
+  // Web: 3D CSS transforms on an ancestor stop the CanvasKit surface from
+  // compositing in Chromium, so the card sits flat — the tilt lives in
+  // the shader shine, which is the part that sells it. Flip still works
+  // (instant side swap).
+  if (Platform.OS === 'web') {
+    return (
+      <Pressable onPress={onFlip}>
+        <View style={[styles.card, { width, height }]}>{inner}</View>
+      </Pressable>
+    )
+  }
+
+  // Web: 3D CSS transforms on an ancestor break CanvasKit's WebGL
+  // compositing in Chromium (verified headed + headless), so the card
+  // sits flat and the tilt lives entirely in the shader shine — which is
+  // the part that sells it anyway. Flip is an instant side swap.
+
   return (
     <Pressable onPress={onFlip}>
       <Animated.View
@@ -77,11 +104,7 @@ export function TiltCard({
           },
         ]}
       >
-        <View style={[{ width, height }, mirror]}>
-          <Canvas style={{ width, height }}>
-            <CardRenderer doc={doc} side={side} viewState={sideView} assets={assets} scale={scale} />
-          </Canvas>
-        </View>
+        {inner}
       </Animated.View>
     </Pressable>
   )
