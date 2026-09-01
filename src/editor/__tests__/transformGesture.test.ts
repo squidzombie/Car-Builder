@@ -1,12 +1,15 @@
 import { test, expect } from '@jest/globals'
 import type { CardDocument, Layer } from '../../model/types'
+import { layerBounds } from '../bounds'
 import {
   MAX_SCALE,
   MIN_SCALE,
   applyPinch,
   applyResize,
+  applyRotate,
   beginPinch,
   beginResize,
+  beginRotate,
   localToDoc,
 } from '../transformGesture'
 
@@ -43,6 +46,40 @@ test('pure pinch scales uniformly about the layer center', () => {
   const center = localToDoc(next, start.pivotLocal)
   expect(center.x).toBeCloseTo(150)
   expect(center.y).toBeCloseTo(150)
+})
+
+test('rotate handle turns about the bounds center, scale untouched', () => {
+  const layer = shapeLayer()
+  // handle grabbed straight above the center, dragged to the right side
+  const start = beginRotate(layer, doc, { x: 150, y: 80 })!
+  const next = applyRotate(start, { x: 220, y: 150 })
+  expect(next.rotation).toBeCloseTo(90)
+  expect(next.scaleX).toBeCloseTo(1)
+  expect(next.scaleY).toBeCloseTo(1)
+  const center = localToDoc(next, start.pivotLocal)
+  expect(center.x).toBeCloseTo(150)
+  expect(center.y).toBeCloseTo(150)
+})
+
+test('rotate handle snaps near 45° multiples', () => {
+  const layer = shapeLayer()
+  const start = beginRotate(layer, doc, { x: 150, y: 80 })!
+  // 44° from start — inside the 3° magnet around 45°
+  const rad = ((45 - 1) * Math.PI) / 180
+  const p = { x: 150 - 70 * Math.sin(-rad), y: 150 - 70 * Math.cos(rad) }
+  const next = applyRotate(start, p)
+  expect(next.rotation).toBeCloseTo(45)
+  // and rotation on an already-rotated layer accumulates (its bounds
+  // center has moved, so derive the pivot the way the editor does)
+  const tilted = shapeLayer({ rotation: 30 })
+  const tb = layerBounds(tilted, doc)
+  const c = { x: tb.x + tb.w / 2, y: tb.y + tb.h / 2 }
+  const s2 = beginRotate(tilted, doc, { x: c.x, y: c.y - 70 })!
+  const n2 = applyRotate(s2, { x: c.x + 70, y: c.y })
+  expect(n2.rotation).toBeCloseTo(120)
+  const center = localToDoc(n2, s2.pivotLocal)
+  expect(center.x).toBeCloseTo(c.x)
+  expect(center.y).toBeCloseTo(c.y)
 })
 
 test('twist rotates about the layer center', () => {

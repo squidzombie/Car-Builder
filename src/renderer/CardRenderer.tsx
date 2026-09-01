@@ -340,16 +340,19 @@ function LayerContent({
         <>
           {s.instances.map((inst, i) => {
             const size = s.baseSize * inst.scale
+            const aspect = shape.defaultAspect ?? 1
+            const iw = aspect >= 1 ? size : size * aspect
+            const ih = iw / aspect
             const path = base.copy()
             const m = Skia.Matrix()
             m.translate(inst.x, inst.y)
             m.rotate((inst.rotation * Math.PI) / 180)
-            m.translate(-size / 2, -size / 2)
-            m.scale(size, size)
+            m.translate(-iw / 2, -ih / 2)
+            m.scale(iw, ih)
             path.transform(m)
             return (
               <Path key={i} path={path} color={paintColor(s.paint)}>
-                <PaintChildren paint={s.paint} w={size} h={size} />
+                <PaintChildren paint={s.paint} w={iw} h={ih} />
               </Path>
             )
           })}

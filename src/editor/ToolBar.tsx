@@ -178,14 +178,19 @@ export function ToolBar(p: Props) {
 const GLYPH = 22
 
 export function ShapeGlyph({ shape, size = GLYPH }: { shape: Shape; size?: number }) {
+  // wide shapes (Rectangle) draw at their aspect, letterboxed in the tile
+  const aspect = shape.defaultAspect ?? 1
+  const gw = aspect >= 1 ? size : size * aspect
+  const gh = gw / aspect
   const path = React.useMemo(() => {
     const sk = Skia.Path.MakeFromSVGString(shape.path)
     if (!sk) return null
     const m = Skia.Matrix()
-    m.scale(size, size)
+    m.translate((size - gw) / 2, (size - gh) / 2)
+    m.scale(gw, gh)
     sk.transform(m)
     return sk
-  }, [shape.path, size])
+  }, [shape.path, size, gw, gh])
   if (!path) return null
   return (
     <Canvas style={{ width: size, height: size }}>

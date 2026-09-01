@@ -16,6 +16,17 @@ describe('editor store', () => {
     expect(s.doc.back.layers).toHaveLength(0)
   })
 
+  test('rectangle instantiates wide (defaultAspect), square stays square', () => {
+    const rect = makeShapeLayer('rect', { color: '#ff0000' })
+    expect(rect.shape!.w / rect.shape!.h).toBeCloseTo(1.6)
+    expect(rect.shape!.w).toBeGreaterThan(rect.shape!.h)
+    const square = makeShapeLayer('square', { color: '#ff0000' })
+    expect(square.shape!.w).toBe(square.shape!.h)
+    // both are centered on the card
+    expect(rect.transform.x + rect.shape!.w / 2).toBeCloseTo(375)
+    expect(rect.transform.y + rect.shape!.h / 2).toBeCloseTo(525)
+  })
+
   test('undo/redo walk a command back and forth', () => {
     const store = freshStore()
     const layer = makeFillLayer({ color: '#123456' })

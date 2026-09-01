@@ -190,6 +190,67 @@ export function applyResize(start: ResizeStart, p: TouchPoint): Transform {
   }
 }
 
+// ---- rotate handle (design lockdown): a dedicated handle above the
+// selection box, so rotation is discoverable without knowing the
+// two-finger twist. Rotates about the bounds center; snaps to 45°s.
+
+/** The handle snaps to multiples of this angle. */
+export const ROTATE_HANDLE_SNAP_STEP = 45
+
+export type RotateStart = {
+  transform: Transform
+  /** bounds center at gesture start, doc space */
+  pivot: TouchPoint
+  /** the same, in layer-local space */
+  pivotLocal: TouchPoint
+  /** finger angle around the pivot at gesture start (radians) */
+  angle: number
+}
+
+export function beginRotate(
+  layer: Layer,
+  doc: CardDocument,
+  p: TouchPoint,
+): RotateStart | null {
+  const t = layer.transform
+  const b = layerBounds(layer, doc)
+  const pivot = { x: b.x + b.w / 2, y: b.y + b.h / 2 }
+  const pivotLocal = invert(t, pivot)
+  if (!pivotLocal) return null
+  if (Math.hypot(p.x - pivot.x, p.y - pivot.y) < 1) return null
+  return {
+    transform: { ...t },
+    pivot,
+    pivotLocal,
+    angle: Math.atan2(p.y - pivot.y, p.x - pivot.x),
+  }
+}
+
+/** New transform for the current finger position (doc space). Pure. */
+export function applyRotate(start: RotateStart, p: TouchPoint): Transform {
+  const t0 = start.transform
+  const angle = Math.atan2(p.y - start.pivot.y, p.x - start.pivot.x)
+  let rotation = t0.rotation + ((angle - start.angle) * 180) / Math.PI
+  rotation = ((((rotation + 180) % 360) + 360) % 360) - 180 // (-180, 180]
+  const snapped = Math.round(rotation / ROTATE_HANDLE_SNAP_STEP) * ROTATE_HANDLE_SNAP_STEP
+  if (Math.abs(rotation - snapped) <= ROTATION_SNAP_DEG) {
+    rotation = snapped === -180 ? 180 : snapped
+  }
+  // keep the bounds center pinned while the rotation changes around it
+  const rad = (rotation * Math.PI) / 180
+  const sx = start.pivotLocal.x * t0.scaleX
+  const sy = start.pivotLocal.y * t0.scaleY
+  const rx = sx * Math.cos(rad) - sy * Math.sin(rad)
+  const ry = sx * Math.sin(rad) + sy * Math.cos(rad)
+  return {
+    x: start.pivot.x - rx,
+    y: start.pivot.y - ry,
+    rotation,
+    scaleX: t0.scaleX,
+    scaleY: t0.scaleY,
+  }
+}
+
 /** Where a layer-local point lands in document space. Exposed for tests. */
 export function localToDoc(t: Transform, p: TouchPoint): TouchPoint {
   const rad = (t.rotation * Math.PI) / 180

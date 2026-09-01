@@ -14,11 +14,15 @@ import { makeShapeContains } from './shapeHit'
 import {
   applyPinch,
   applyResize,
+  applyRotate,
   beginPinch,
   beginResize,
+  beginRotate,
   pinchGeometry,
+  ROTATE_HANDLE_SNAP_STEP,
   type PinchStart,
   type ResizeStart,
+  type RotateStart,
 } from './transformGesture'
 import {
   jitterInstance,
@@ -50,6 +54,24 @@ import { color, pressed, type } from './theme'
 
 const TAP_SLOP = 8
 const MAX_ZOOM = 8
+
+// rotate-handle placement (shared by the responder and the render):
+// centered above the selection box, flipped below it near the top edge
+const ROTATE_OFFSET = 26
+function rotateHandlePos(
+  b: { x: number; y: number; w: number; h: number },
+  t: number,
+  ox: number,
+  oy: number,
+) {
+  const topY = b.y * t + oy
+  const flip = topY - ROTATE_OFFSET < 10
+  return {
+    x: (b.x + b.w / 2) * t + ox,
+    y: flip ? (b.y + b.h) * t + oy + ROTATE_OFFSET : topY - ROTATE_OFFSET,
+    flip,
+  }
+}
 
 type CanvasView = { scale: number; x: number; y: number }
 type PickerTarget = 'layer' | 'draw' | 'stamp'
@@ -225,6 +247,7 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
   // over stale render values. One responder session = one undo step.
   const drag = useRef<{ id: string; startX: number; startY: number } | null>(null)
   const resizeSession = useRef<{ id: string; start: ResizeStart } | null>(null)
+  const rotateSession = useRef<{ id: string; start: RotateStart } | null>(null)
   const pinchStart = useRef<PinchStart | null>(null)
   const pinchLayerId = useRef<string | null>(null)
   const gestureStarted = useRef(false)
@@ -462,6 +485,7 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
         gestureStarted.current = false
         sessionTransformed.current = false
         drag.current = null
+        rotateSession.current = null
         drawSession.current = null
         stampSession.current = null
         eraseSession.current = null
@@ -488,6 +512,17 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
           const o = origin(viewRef.current)
           const vx = e.nativeEvent.locationX
           const vy = e.nativeEvent.locationY
+          // rotate handle above the box → rotate about the center
+          const rp = rotateHandlePos(b, o.t, o.x, o.y)
+          if (Math.hypot(vx - rp.x, vy - rp.y) < 22) {
+            const start = beginRotate(sel, s.doc, docPoint(vx, vy))
+            if (start) {
+              rotateSession.current = { id: sel.id, start }
+              s.beginGesture()
+              gestureStarted.current = true
+              return
+            }
+          }
           const corners: [number, number][] = [
             [b.x, b.y],
             [b.x + b.w, b.y],
@@ -549,6 +584,7 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
               pinchLayerId.current = sel.id
               drag.current = null
               resizeSession.current = null
+              rotateSession.current = null
               return
             }
             const next = applyPinch(pinchStart.current, a, b)
@@ -594,6 +630,20 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
 
         // a finger lifted mid-pinch: freeze until the session ends
         if (pinchStart.current || canvasPinch.current) return
+
+        if (rotateSession.current) {
+          const rs = rotateSession.current
+          const next = applyRotate(
+            rs.start,
+            docPoint(e.nativeEvent.locationX, e.nativeEvent.locationY),
+          )
+          const snapped = next.rotation % ROTATE_HANDLE_SNAP_STEP === 0
+          if (snapped && !wasSnapped.current) tick()
+          wasSnapped.current = snapped
+          sessionTransformed.current = true
+          s.updateLayer(rs.id, (l) => void (l.transform = next), { transient: true })
+          return
+        }
 
         if (resizeSession.current) {
           const rs = resizeSession.current
@@ -652,6 +702,7 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
         const pinched = pinchStart.current !== null || canvasPinch.current !== null
         drag.current = null
         resizeSession.current = null
+        rotateSession.current = null
         pinchStart.current = null
         pinchLayerId.current = null
         canvasPinch.current = null
@@ -678,6 +729,7 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
         setLoupe(null)
         drag.current = null
         resizeSession.current = null
+        rotateSession.current = null
         pinchStart.current = null
         pinchLayerId.current = null
         canvasPinch.current = null
@@ -786,6 +838,26 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
                           ]}
                         />
                       ))
+                  : null}
+                {!selected?.locked
+                  ? (() => {
+                      const rp = rotateHandlePos(selectionBox, total, originX, originY)
+                      return (
+                        <>
+                          <View
+                            pointerEvents="none"
+                            style={[
+                              styles.rotateStem,
+                              { left: rp.x - 0.75, top: rp.flip ? rp.y - ROTATE_OFFSET : rp.y + 8 },
+                            ]}
+                          />
+                          <View
+                            pointerEvents="none"
+                            style={[styles.rotateHandle, { left: rp.x - 8, top: rp.y - 8 }]}
+                          />
+                        </>
+                      )
+                    })()
                   : null}
               </>
             ) : null}
@@ -1060,6 +1132,22 @@ const styles = StyleSheet.create({
     borderColor: color.hairlineBright,
   },
   colorChip: { flex: 1 },
+  rotateHandle: {
+    position: 'absolute',
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#ffffff',
+    borderWidth: 2,
+    borderColor: color.accent,
+  },
+  rotateStem: {
+    position: 'absolute',
+    width: 1.5,
+    height: ROTATE_OFFSET - 8,
+    backgroundColor: color.accent,
+    opacity: 0.7,
+  },
   loupe: { position: 'absolute', width: 54, alignItems: 'center', gap: 4 },
   loupeSwatch: {
     width: 54,

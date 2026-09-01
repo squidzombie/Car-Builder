@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { produce } from 'immer'
 import type { CardDocument, Color, Layer, Paint } from '../model/types'
 import { CARD_H, CARD_W, defaultTransform } from '../model/types'
+import { getShape } from '../model/shapes'
 
 // Editor state (CLAUDE.md §4): the document plus selection, side, and an
 // undo/redo command stack. History is snapshot-based — immer's structural
@@ -348,13 +349,17 @@ export function makeStampLayer(shapeId: string, paint: Paint, baseSize: number):
 
 /** Default shape layer, centered on the card (M2). */
 export function makeShapeLayer(shapeId: string, paint: Paint, size = 320): Layer {
+  // non-square shapes (Rectangle) declare their aspect on the library entry
+  const aspect = getShape(shapeId)?.defaultAspect ?? 1
+  const w = aspect >= 1 ? size * Math.sqrt(aspect) : size
+  const h = w / aspect
   return {
     id: newLayerId('shape'),
-    name: shapeId.charAt(0).toUpperCase() + shapeId.slice(1),
+    name: getShape(shapeId)?.name ?? shapeId.charAt(0).toUpperCase() + shapeId.slice(1),
     type: 'shape',
     transform: {
-      x: (CARD_W - size) / 2,
-      y: (CARD_H - size) / 2,
+      x: (CARD_W - w) / 2,
+      y: (CARD_H - h) / 2,
       rotation: 0,
       scaleX: 1,
       scaleY: 1,
@@ -363,6 +368,6 @@ export function makeShapeLayer(shapeId: string, paint: Paint, size = 320): Layer
     blendMode: 'srcOver',
     locked: false,
     visible: true,
-    shape: { shapeId, paint, w: size, h: size },
+    shape: { shapeId, paint, w, h },
   }
 }
