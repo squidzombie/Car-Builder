@@ -157,6 +157,7 @@ describe('editor store', () => {
     const store = freshStore()
     store.getState().apply((doc) => {
       doc.shapes = [{ id: 'c1', name: '8-star', path: 'M0 0 L1 0 L1 1 Z', builtIn: false }]
+      doc.condition = { preset: 'played', intensity: 0.7 }
       doc.front.layers.push({
         id: 'p1',
         name: 'Drawing',
@@ -166,6 +167,7 @@ describe('editor store', () => {
         blendMode: 'srcOver',
         locked: false,
         visible: true,
+        emboss: { height: 0.6, style: 'raised' },
         path: {
           strokes: [
             { points: [{ x: 1, y: 2 }, { x: 3, y: 4 }] },

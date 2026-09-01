@@ -5,9 +5,10 @@ import { GEOMETRIC_SKSL } from './geometric.sksl'
 import { FLUID_SKSL } from './fluid.sksl'
 import { METALLIC_SKSL } from './metallic.sksl'
 import { SPARKLE_SKSL } from './sparkle.sksl'
+import { WEAR_SKSL } from './wear.sksl'
 
 export { FINISH_PRESETS, getPreset, makeFinish } from './presets'
-export { buildFinishUniforms } from './uniforms'
+export { buildFinishUniforms, buildWearUniforms } from './uniforms'
 
 const SOURCES: Record<FinishFamily, string> = {
   spectrum: SPECTRUM_SKSL,
@@ -29,4 +30,16 @@ export function getFinishEffect(family: FinishFamily): SkRuntimeEffect {
     cache.set(family, eff)
   }
   return eff
+}
+
+let wearEffect: SkRuntimeEffect | null = null
+
+/** Compile (once) and return the card-condition wear overlay effect. */
+export function getWearEffect(): SkRuntimeEffect {
+  if (!wearEffect) {
+    const made = Skia.RuntimeEffect.Make(WEAR_SKSL)
+    if (!made) throw new Error('failed to compile wear shader')
+    wearEffect = made
+  }
+  return wearEffect
 }

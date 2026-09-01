@@ -1,4 +1,4 @@
-import type { Finish, ViewState } from '../model/types'
+import type { ConditionPreset, Finish, ViewState } from '../model/types'
 import { parseColor } from '../model/color'
 
 const MAX_COLORS = 6
@@ -34,5 +34,33 @@ export function buildFinishUniforms(
     uP1: finish.params.p1 ?? 0,
     uP2: finish.params.p2 ?? 0,
     uP3: finish.params.p3 ?? 0,
+  }
+}
+
+// Per-preset wear dials (Build 4): scratches / edge whitening / corner
+// scuffing, all scaled by the user's intensity slider.
+const WEAR_PRESETS: Record<ConditionPreset, { scratches: number; edge: number; corner: number }> = {
+  mint: { scratches: 0.25, edge: 0.12, corner: 0.08 },
+  'near-mint': { scratches: 0.55, edge: 0.3, corner: 0.25 },
+  played: { scratches: 1.0, edge: 0.7, corner: 0.6 },
+  'heavily-played': { scratches: 1.6, edge: 1.0, corner: 1.0 },
+}
+
+/** Uniforms for the card-condition wear overlay (pure). */
+export function buildWearUniforms(
+  condition: { preset: ConditionPreset; intensity: number },
+  view: ViewState,
+  size: { w: number; h: number },
+): Record<string, number | number[]> {
+  const p = WEAR_PRESETS[condition.preset] ?? WEAR_PRESETS.played
+  return {
+    uSize: [size.w, size.h],
+    uTilt: [view.tiltX, view.tiltY],
+    uLight: [view.lightX, view.lightY],
+    uAmount: Math.max(0, Math.min(1, condition.intensity)),
+    uScratches: p.scratches,
+    uEdge: p.edge,
+    uCorner: p.corner,
+    uSeed: 7.31,
   }
 }

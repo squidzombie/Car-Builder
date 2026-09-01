@@ -124,6 +124,8 @@ export function makeStandardBack(opts: {
       type: 'text',
       transform: { x: CARD_W / 2, y: 990, rotation: 0, scaleX: 1, scaleY: 1 },
       text: { content: 'NO. 23 / 99', font: 'bebas', size: 34, color: opts.accent, align: 'c' },
+      // serial numbers print with visibly raised ink (Build 4 emboss)
+      emboss: { height: 0.55, style: 'raised' },
     }),
   )
 

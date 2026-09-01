@@ -143,6 +143,45 @@ export function FinishEditor({ layerId, onClose }: Props) {
         ) : (
           <Text style={styles.hint}>Pick a preset to give this layer a holo finish</Text>
         )}
+
+        <View style={styles.paletteRow}>
+          <Text style={styles.paletteLabel}>Surface</Text>
+          {(
+            [
+              ['flat', 'Flat'],
+              ['raised', 'Raised'],
+              ['inset', 'Inset'],
+            ] as const
+          ).map(([key, label]) => {
+            const active = key === 'flat' ? !layer.emboss : layer.emboss?.style === key
+            return (
+              <Pressable
+                key={key}
+                style={[styles.chip, active && styles.chipActive]}
+                onPress={() =>
+                  patch((l) => {
+                    l.emboss =
+                      key === 'flat'
+                        ? undefined
+                        : { height: l.emboss?.height ?? 0.5, style: key }
+                  })
+                }
+              >
+                <Text style={[styles.chipText, active && styles.chipTextActive]}>{label}</Text>
+              </Pressable>
+            )
+          })}
+        </View>
+        {layer.emboss ? (
+          <MiniSlider
+            label={`Depth · ${layer.emboss.height.toFixed(2)}`}
+            value={layer.emboss.height}
+            min={0.1}
+            max={1}
+            onBegin={() => useEditor.getState().beginGesture()}
+            onChange={(v) => patch((l) => void (l.emboss && (l.emboss.height = v)), true)}
+          />
+        ) : null}
     </Sheet>
   )
 }

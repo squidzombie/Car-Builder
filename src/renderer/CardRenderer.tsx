@@ -19,7 +19,9 @@ import {
 import type { CardDocument, Layer, Mask, ViewState } from '../model/types'
 import { getShape } from '../model/shapes'
 import { getTypeface } from './fonts'
-import { getFinishEffect, buildFinishUniforms } from '../finishes'
+import { getFinishEffect, buildFinishUniforms, buildWearUniforms } from '../finishes'
+import { getWearEffect } from '../finishes'
+import { BlendColor } from '@shopify/react-native-skia'
 import { strokePathFromPoints } from './strokePath'
 import { paintColor, PaintChildren } from './paintProps'
 
@@ -53,6 +55,14 @@ export function CardRenderer({ doc, side, viewState, assets, scale = 1 }: CardRe
             <LayerNode key={layer.id} layer={layer} doc={doc} viewState={viewState} assets={assets} />
           ) : null,
         )}
+        {doc.condition && doc.condition.intensity > 0 ? (
+          <Rect x={0} y={0} width={w} height={h}>
+            <Shader
+              source={getWearEffect()}
+              uniforms={buildWearUniforms(doc.condition, viewState, doc.size)}
+            />
+          </Rect>
+        ) : null}
       </Group>
     </Group>
   )
@@ -71,30 +81,78 @@ function LayerNode({
 }) {
   const { w, h } = doc.size
   const t = layer.transform
-  const needsLayer = layer.finish !== undefined || layer.mask !== undefined
+  const needsLayer =
+    layer.finish !== undefined || layer.mask !== undefined || layer.emboss !== undefined
   const layerPaint =
     needsLayer || layer.opacity < 1 || layer.blendMode !== 'srcOver' ? (
       <Paint opacity={layer.opacity} blendMode={layer.blendMode} />
     ) : undefined
 
+  const baseTransform = (dx = 0, dy = 0) => [
+    { translateX: t.x + dx },
+    { translateY: t.y + dy },
+    { rotate: (t.rotation * Math.PI) / 180 },
+    { scaleX: t.scaleX },
+    { scaleY: t.scaleY },
+  ]
+
   const content = (
-    <Group
-      transform={[
-        { translateX: t.x },
-        { translateY: t.y },
-        { rotate: (t.rotation * Math.PI) / 180 },
-        { scaleX: t.scaleX },
-        { scaleY: t.scaleY },
-      ]}
-    >
+    <Group transform={baseTransform()}>
       <LayerContent layer={layer} doc={doc} assets={assets} />
     </Group>
   )
 
   if (!layerPaint) return content
 
+  // Emboss (Build 4): the content's silhouette drawn twice under itself,
+  // offset along the light direction — a highlight edge facing the light
+  // and a shadow edge away from it. Offsets follow the tilt, so raised
+  // ink visibly catches the light as the card moves.
+  let embossPasses: React.ReactNode = null
+  if (layer.emboss) {
+    let lx = (viewState.lightX - 0.5) * 2
+    let ly = (viewState.lightY - 0.35) * 2
+    const len = Math.hypot(lx, ly)
+    if (len < 0.05) {
+      lx = 0.5
+      ly = 0.7
+    } else {
+      lx /= len
+      ly /= len
+    }
+    const mag = 2.5 + layer.emboss.height * 7
+    const flip = layer.emboss.style === 'inset' ? -1 : 1
+    const hx = -lx * mag * flip
+    const hy = -ly * mag * flip
+    embossPasses = (
+      <>
+        <Group
+          transform={baseTransform(hx, hy)}
+          layer={
+            <Paint opacity={0.55} blendMode="screen">
+              <BlendColor color="#ffffff" mode="srcIn" />
+            </Paint>
+          }
+        >
+          <LayerContent layer={layer} doc={doc} assets={assets} />
+        </Group>
+        <Group
+          transform={baseTransform(-hx, -hy)}
+          layer={
+            <Paint opacity={0.5} blendMode="multiply">
+              <BlendColor color="#000000" mode="srcIn" />
+            </Paint>
+          }
+        >
+          <LayerContent layer={layer} doc={doc} assets={assets} />
+        </Group>
+      </>
+    )
+  }
+
   return (
     <Group layer={layerPaint}>
+      {embossPasses}
       {content}
       {layer.finish ? <FinishPass layer={layer} doc={doc} viewState={viewState} /> : null}
       {layer.mask ? (

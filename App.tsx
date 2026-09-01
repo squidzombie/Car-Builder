@@ -7,6 +7,7 @@ import { Canvas, useCanvasRef, type SkImage } from '@shopify/react-native-skia'
 import { useTilt } from './src/view/useTilt'
 import { TiltCard } from './src/view/TiltCard'
 import { TemplateChooser } from './src/view/TemplateChooser'
+import { ConditionSheet } from './src/view/ConditionSheet'
 import { useDocImages } from './src/view/useDocImages'
 import { useBundledFonts } from './src/view/useBundledFonts'
 import { TEMPLATES } from './src/templates'
@@ -88,6 +89,7 @@ function PreviewScreen({ onEdit }: { onEdit: () => void }) {
   const doc = useEditor((s) => s.doc)
   const assets = useDocImages(doc)
   const [choosing, setChoosing] = useState(false)
+  const [grading, setGrading] = useState(false)
   const [exportSide, setExportSide] = useState<'front' | 'back' | null>(null)
   const shownSide = useRef<'front' | 'back'>('front')
 
@@ -102,6 +104,11 @@ function PreviewScreen({ onEdit }: { onEdit: () => void }) {
         assets={assets}
         onSideChange={(s) => (shownSide.current = s)}
       />
+      <Pressable style={styles.gradeChip} hitSlop={8} onPress={() => setGrading(true)}>
+        <Text style={styles.gradeChipText}>
+          {doc.condition ? `Grade · ${doc.condition.preset}` : 'Grade'}
+        </Text>
+      </Pressable>
       <View style={styles.controls}>
         <View style={styles.buttonRow}>
           <Pressable style={styles.editButton} onPress={onEdit} hitSlop={6}>
@@ -140,6 +147,7 @@ function PreviewScreen({ onEdit }: { onEdit: () => void }) {
           }}
         />
       ) : null}
+      {grading ? <ConditionSheet onClose={() => setGrading(false)} /> : null}
       {exportSide ? (
         <ExportSnapshot
           doc={doc}
@@ -229,4 +237,16 @@ const styles = StyleSheet.create({
   editButtonText: { color: '#c9d6ea', fontSize: 14 },
   hint: { color: '#5a6478', fontSize: 12 },
   exportHolder: { position: 'absolute', left: -4000, top: 0 },
+  gradeChip: {
+    position: 'absolute',
+    top: 56,
+    left: 20,
+    minHeight: 36,
+    paddingHorizontal: 14,
+    borderRadius: 18,
+    backgroundColor: '#1c2233',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  gradeChipText: { color: '#c9d6ea', fontSize: 13 },
 })

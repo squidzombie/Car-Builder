@@ -41,6 +41,8 @@ export type Mask = {
 
 export type FinishFamily = 'spectrum' | 'geometric' | 'fluid' | 'metallic' | 'sparkle'
 
+export type ConditionPreset = 'mint' | 'near-mint' | 'played' | 'heavily-played'
+
 export type Finish = {
   family: FinishFamily
   preset: string // e.g. 'refractor', 'cracked-ice', 'lava'
@@ -73,6 +75,8 @@ export type Layer = {
   visible: boolean
   mask?: Mask
   finish?: Finish
+  /** raised/inset ink illusion, lit by the view's light (Build 4) */
+  emboss?: { height: number; style: 'raised' | 'inset' }
   // type-specific payloads:
   fill?: { paint: Paint }
   image?: { assetId: string; cutout: 'none' | 'subject' | 'manual'; w: number; h: number }
@@ -104,6 +108,8 @@ export type CardDocument = {
   palette: Palette
   /** custom shapes used by this card (§4 polygon builder) — travel with it */
   shapes?: Shape[]
+  /** simulated card condition — tilt-reactive wear overlay (Build 4) */
+  condition?: { preset: ConditionPreset; intensity: number }
   front: Side
   back: Side
   meta: {
