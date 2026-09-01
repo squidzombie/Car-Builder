@@ -2,6 +2,7 @@ import React, { useMemo, useRef, useState } from 'react'
 import { PanResponder, Pressable, StyleSheet, Switch, Text, View } from 'react-native'
 import { Canvas, Path } from '@shopify/react-native-skia'
 import { buildDrawnShapePath, buildPolygonPath } from '../model/shapes'
+import { buildInkShapePath } from './drawnShape'
 import type { Shape } from '../model/shapeTypes'
 import type { Point } from '../model/types'
 import { useEditor } from '../state/useEditor'
@@ -48,6 +49,9 @@ export function ShapeBuilder({ onClose, onSaved }: Props) {
   // ---- draw pad ----
   const [strokes, setStrokes] = useState<Point[][]>([])
   const [cur, setCur] = useState<Point[]>([])
+  // Filled: strokes close into a silhouette. Ink: the lines ARE the shape.
+  const [drawStyle, setDrawStyle] = useState<'filled' | 'ink'>('filled')
+  const [inkWidth, setInkWidth] = useState(10)
   const curRef = useRef<Point[]>([])
   const clampPad = (v: number) => Math.max(0, Math.min(PAD, v))
   const pan = useMemo(
@@ -81,10 +85,10 @@ export function ShapeBuilder({ onClose, onSaved }: Props) {
     [],
   )
 
-  const drawn = useMemo(
-    () => buildDrawnShapePath(cur.length >= 2 ? [...strokes, cur] : strokes),
-    [strokes, cur],
-  )
+  const drawn = useMemo(() => {
+    const all = cur.length >= 2 ? [...strokes, cur] : strokes
+    return drawStyle === 'ink' ? buildInkShapePath(all, inkWidth) : buildDrawnShapePath(all)
+  }, [strokes, cur, drawStyle, inkWidth])
 
   const preview: Shape | null = useMemo(() => {
     if (mode === 'polygon') {
@@ -96,10 +100,10 @@ export function ShapeBuilder({ onClose, onSaved }: Props) {
       name: 'preview',
       path: drawn.path,
       builtIn: false,
-      fillRule: 'evenodd',
+      fillRule: drawStyle === 'filled' ? 'evenodd' : undefined,
       defaultAspect: drawn.aspect,
     }
-  }, [mode, polygonPath, drawn])
+  }, [mode, polygonPath, drawn, drawStyle])
 
   const canSave = mode === 'polygon' || drawn !== null
 
@@ -116,10 +120,10 @@ export function ShapeBuilder({ onClose, onSaved }: Props) {
       if (!drawn) return
       shape = {
         id: newLayerId('shape-custom'),
-        name: 'Drawn shape',
+        name: drawStyle === 'ink' ? 'Ink drawing' : 'Drawn shape',
         path: drawn.path,
         builtIn: false,
-        fillRule: 'evenodd',
+        fillRule: drawStyle === 'filled' ? 'evenodd' : undefined,
         defaultAspect: drawn.aspect,
       }
     }
@@ -208,7 +212,7 @@ export function ShapeBuilder({ onClose, onSaved }: Props) {
                       key={i}
                       path={strokePathFromPoints(s)}
                       style="stroke"
-                      strokeWidth={3}
+                      strokeWidth={drawStyle === 'ink' ? inkWidth : 3}
                       strokeCap="round"
                       strokeJoin="round"
                       color={color.glyph}
@@ -216,13 +220,30 @@ export function ShapeBuilder({ onClose, onSaved }: Props) {
                   ))}
               </Canvas>
               {strokes.length === 0 && cur.length === 0 ? (
-                <Text style={styles.padHint}>Draw an outline — each stroke closes into the shape</Text>
+                <Text style={styles.padHint}>
+                  {drawStyle === 'ink'
+                    ? 'Draw — the lines become the shape'
+                    : 'Draw an outline — each stroke closes into the shape'}
+                </Text>
               ) : null}
             </View>
             <View style={styles.drawSide}>
               <View style={styles.previewBoxSmall}>
                 {preview ? <ShapeGlyph shape={preview} size={64} /> : null}
               </View>
+              {(['filled', 'ink'] as const).map((st) => (
+                <Pressable
+                  key={st}
+                  style={pressed(styles.styleChip, drawStyle === st && styles.styleChipActive)}
+                  onPress={() => setDrawStyle(st)}
+                >
+                  <Text
+                    style={[styles.styleChipText, drawStyle === st && styles.styleChipTextActive]}
+                  >
+                    {st === 'filled' ? 'Filled' : 'Ink'}
+                  </Text>
+                </Pressable>
+              ))}
               <Pressable
                 style={pressed(styles.clearButton)}
                 hitSlop={6}
@@ -233,6 +254,16 @@ export function ShapeBuilder({ onClose, onSaved }: Props) {
               </Pressable>
             </View>
           </View>
+          {drawStyle === 'ink' ? (
+            <MiniSlider
+              label={`Ink width · ${Math.round(inkWidth)}`}
+              value={inkWidth}
+              min={4}
+              max={32}
+              step={1}
+              onChange={(v) => setInkWidth(Math.round(v))}
+            />
+          ) : null}
         </>
       )}
     </Sheet>
@@ -311,4 +342,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   clearText: { color: color.textMid, fontSize: type.md },
+  styleChip: {
+    minHeight: 34,
+    minWidth: 80,
+    borderRadius: radius.md,
+    backgroundColor: color.chip,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  styleChipActive: { backgroundColor: color.chipActive, borderWidth: 1, borderColor: color.accent },
+  styleChipText: { color: color.textDim, fontSize: type.md },
+  styleChipTextActive: { color: color.text, fontWeight: '600' },
 })
