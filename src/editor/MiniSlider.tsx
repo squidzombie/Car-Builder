@@ -1,8 +1,11 @@
 import React, { useMemo, useRef } from 'react'
 import { PanResponder, StyleSheet, Text, View } from 'react-native'
+import { color, type } from './theme'
 
-// Small shared slider (builder, mask/text editors). Children of the
-// track are pointerEvents:none so locationX is track-relative.
+// Small shared slider (builder, mask/text editors). The responder lives
+// on a vertically-padded hit area (~50dp) around the visual track;
+// children are pointerEvents:none so locationX is hit-area-relative,
+// which matches the track horizontally (no horizontal padding).
 
 export function MiniSlider({
   label,
@@ -55,24 +58,27 @@ export function MiniSlider({
     <View style={styles.sliderRow}>
       <Text style={styles.sliderLabel}>{label}</Text>
       <View
-        style={styles.track}
+        style={styles.hit}
         onLayout={(e) => (trackW.current = Math.max(1, e.nativeEvent.layout.width))}
         {...pan.panHandlers}
       >
-        <View pointerEvents="none" style={[styles.trackFill, { width: `${frac * 100}%` }]} />
-        <View pointerEvents="none" style={[styles.thumb, { left: `${frac * 100}%` }]} />
+        <View pointerEvents="none" style={styles.track}>
+          <View style={[styles.trackFill, { width: `${frac * 100}%` }]} />
+          <View style={[styles.thumb, { left: `${frac * 100}%` }]} />
+        </View>
       </View>
     </View>
   )
 }
 
 const styles = StyleSheet.create({
-  sliderRow: { gap: 6 },
-  sliderLabel: { color: '#7f8db0', fontSize: 12 },
+  sliderRow: { gap: 2 },
+  sliderLabel: { color: color.textDim, fontSize: type.sm },
+  hit: { paddingVertical: 8, justifyContent: 'center' },
   track: {
     height: 34,
     borderRadius: 17,
-    backgroundColor: '#1c2233',
+    backgroundColor: color.chip,
     justifyContent: 'center',
     overflow: 'hidden',
   },
@@ -81,7 +87,7 @@ const styles = StyleSheet.create({
     left: 0,
     top: 0,
     bottom: 0,
-    backgroundColor: '#2a3554',
+    backgroundColor: color.chipActive,
   },
   thumb: {
     position: 'absolute',
@@ -89,6 +95,6 @@ const styles = StyleSheet.create({
     height: 24,
     borderRadius: 2,
     marginLeft: -2,
-    backgroundColor: '#4da3ff',
+    backgroundColor: color.accent,
   },
 })

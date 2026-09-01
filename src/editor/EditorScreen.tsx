@@ -189,15 +189,35 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
     setEyedropping(false)
   }
 
-  /** Sample the rendered card at view coordinates (§6 eyedropper). */
-  const sampleAt = (vx: number, vy: number) => {
-    setEyedropping(false)
+  /** Read one rendered pixel at view coordinates (§6 eyedropper). */
+  const readPixel = (vx: number, vy: number): Color | null => {
     const rect = Skia.XYWHRect(Math.max(0, Math.floor(vx)), Math.max(0, Math.floor(vy)), 1, 1)
     const image = canvasRef.current?.makeImageSnapshot(rect)
     const pixels = image?.readPixels()
-    if (!pixels || pixels.length < 3) return
+    if (!pixels || pixels.length < 3) return null
     const norm = pixels instanceof Float32Array ? (v: number) => v : (v: number) => v / 255
-    applyColor(rgbaToHex(norm(pixels[0]), norm(pixels[1]), norm(pixels[2])), false)
+    return rgbaToHex(norm(pixels[0]), norm(pixels[1]), norm(pixels[2]))
+  }
+
+  const sampleAt = (vx: number, vy: number) => {
+    setEyedropping(false)
+    const hex = readPixel(vx, vy)
+    if (hex) {
+      tick()
+      applyColor(hex, false)
+    }
+  }
+
+  // loupe: the color under the finger, shown above it while aiming —
+  // sampling is otherwise hidden under the fingertip
+  const [loupe, setLoupe] = useState<{ x: number; y: number; hex: Color } | null>(null)
+  const loupeAt = useRef(0)
+  const moveLoupe = (vx: number, vy: number) => {
+    const now = Date.now()
+    if (now - loupeAt.current < 32) return
+    loupeAt.current = now
+    const hex = readPixel(vx, vy)
+    if (hex) setLoupe({ x: vx, y: vy, hex })
   }
 
   // ---- canvas gestures ----
@@ -446,7 +466,10 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
         stampSession.current = null
         eraseSession.current = null
         panFrom.current = { ...viewRef.current }
-        if (eyedroppingRef.current) return
+        if (eyedroppingRef.current) {
+          moveLoupe(e.nativeEvent.locationX, e.nativeEvent.locationY)
+          return
+        }
         const p = docPoint(e.nativeEvent.locationX, e.nativeEvent.locationY)
         const tool = toolRef.current
         if (tool.mode === 'draw') {
@@ -495,6 +518,10 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
         }
       },
       onPanResponderMove: (e, g) => {
+        if (eyedroppingRef.current) {
+          moveLoupe(e.nativeEvent.locationX, e.nativeEvent.locationY)
+          return
+        }
         const s = useEditor.getState()
         const touches = e.nativeEvent.touches
 
@@ -617,6 +644,11 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
         }
       },
       onPanResponderRelease: (e, g) => {
+        if (eyedroppingRef.current) {
+          setLoupe(null)
+          sampleAt(e.nativeEvent.locationX, e.nativeEvent.locationY)
+          return
+        }
         const pinched = pinchStart.current !== null || canvasPinch.current !== null
         drag.current = null
         resizeSession.current = null
@@ -636,19 +668,14 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
         if (pinched || sessionTransformed.current) return
         if (Math.abs(g.dx) > TAP_SLOP || Math.abs(g.dy) > TAP_SLOP) return
         // a tap
-        const vx = e.nativeEvent.locationX
-        const vy = e.nativeEvent.locationY
-        if (eyedroppingRef.current) {
-          sampleAt(vx, vy)
-          return
-        }
         const s = useEditor.getState()
-        const p = docPoint(vx, vy)
+        const p = docPoint(e.nativeEvent.locationX, e.nativeEvent.locationY)
         const hit = hitTest(s.doc, s.side, p.x, p.y, { shapeContains: makeShapeContains(s.doc) })
         if (hit && hit.id !== s.selectedId) tick()
         s.select(hit ? hit.id : null)
       },
       onPanResponderTerminate: () => {
+        setLoupe(null)
         drag.current = null
         resizeSession.current = null
         pinchStart.current = null
@@ -770,6 +797,15 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
               >
                 <Text style={styles.zoomChipText}>{Math.round(view.scale * 100)}% ⤢</Text>
               </Pressable>
+            ) : null}
+            {loupe ? (
+              <View
+                pointerEvents="none"
+                style={[styles.loupe, { left: loupe.x - 27, top: Math.max(4, loupe.y - 92) }]}
+              >
+                <View style={[styles.loupeSwatch, { backgroundColor: loupe.hex }]} />
+                <Text style={styles.loupeHex}>{loupe.hex}</Text>
+              </View>
             ) : null}
           </>
         ) : null}
@@ -1024,6 +1060,29 @@ const styles = StyleSheet.create({
     borderColor: color.hairlineBright,
   },
   colorChip: { flex: 1 },
+  loupe: { position: 'absolute', width: 54, alignItems: 'center', gap: 4 },
+  loupeSwatch: {
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    borderWidth: 3,
+    borderColor: '#ffffff',
+    shadowColor: '#000000',
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 8,
+  },
+  loupeHex: {
+    color: color.text,
+    fontSize: type.xs,
+    fontVariant: ['tabular-nums'],
+    backgroundColor: color.chipGlass,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    overflow: 'hidden',
+  },
   eyedropBanner: {
     position: 'absolute',
     top: 108,
