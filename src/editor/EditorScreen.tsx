@@ -40,7 +40,7 @@ import { FinishEditor } from './FinishEditor'
 import { useDocImages } from '../view/useDocImages'
 import { tick } from '../view/haptics'
 import { ToolBar, type DrawSettings, type EditorMode, type StampSettings } from './ToolBar'
-import { pressed } from './theme'
+import { color, pressed, type } from './theme'
 
 // Editor screen (M2 core + M3 tools, CLAUDE.md §4).
 // Select mode: tap-to-select, one-finger drag, two-finger pinch/twist on
@@ -691,7 +691,7 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
             disabled={!canUndo}
             onPress={() => useEditor.getState().undo()}
           >
-            <Feather name="corner-up-left" size={16} color={canUndo ? '#c9d6ea' : '#3d4560'} />
+            <Feather name="corner-up-left" size={16} color={canUndo ? color.textMid : color.textGhost} />
           </Pressable>
           <Pressable
             style={pressed(styles.toolButton)}
@@ -699,7 +699,7 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
             disabled={!canRedo}
             onPress={() => useEditor.getState().redo()}
           >
-            <Feather name="corner-up-right" size={16} color={canRedo ? '#c9d6ea' : '#3d4560'} />
+            <Feather name="corner-up-right" size={16} color={canRedo ? color.textMid : color.textGhost} />
           </Pressable>
         </View>
       </View>
@@ -939,7 +939,7 @@ function EditorCanvas({
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#08090f' },
+  root: { flex: 1, backgroundColor: color.bg0 },
   toolbar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -952,26 +952,26 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 16,
-    backgroundColor: '#1c2233',
+    backgroundColor: color.chip,
   },
-  toolText: { color: '#c9d6ea', fontSize: 14 },
-  toolTextDisabled: { color: '#3d4560' },
+  toolText: { color: color.textMid, fontSize: type.base },
+  toolTextDisabled: { color: color.textGhost },
   historyButtons: { flexDirection: 'row', gap: 8 },
   sideSwitch: {
     flexDirection: 'row',
-    backgroundColor: '#12162a',
+    backgroundColor: color.track,
     borderRadius: 16,
     padding: 2,
   },
   sideOption: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 14 },
-  sideOptionActive: { backgroundColor: '#2a3554' },
-  sideText: { color: '#7f8db0', fontSize: 13 },
-  sideTextActive: { color: '#e6ecf7' },
+  sideOptionActive: { backgroundColor: color.chipActive },
+  sideText: { color: color.textDim, fontSize: type.md },
+  sideTextActive: { color: color.text },
   canvasArea: { flex: 1, overflow: 'hidden' },
   selection: {
     position: 'absolute',
     borderWidth: 2,
-    borderColor: '#4da3ff',
+    borderColor: color.accent,
     borderRadius: 3,
   },
   handle: {
@@ -981,7 +981,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: '#ffffff',
     borderWidth: 2,
-    borderColor: '#4da3ff',
+    borderColor: color.accent,
   },
   zoomChip: {
     // bottom-center: thumb-friendly, and resize handles live on CORNERS,
@@ -992,36 +992,36 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 7,
     borderRadius: 14,
-    backgroundColor: '#1c2233ee',
+    backgroundColor: color.chipGlass,
   },
-  zoomChipText: { color: '#c9d6ea', fontSize: 12, fontVariant: ['tabular-nums'] },
+  zoomChipText: { color: color.textMid, fontSize: type.sm, fontVariant: ['tabular-nums'] },
   propsBar: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
     paddingHorizontal: 16,
     paddingVertical: 8,
-    backgroundColor: '#0d1120',
+    backgroundColor: color.bgBar,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#232b42',
+    borderTopColor: color.hairline,
   },
-  propsName: { color: '#e6ecf7', fontSize: 13, flex: 1 },
-  propsInfo: { color: '#5a6478', fontSize: 12, fontVariant: ['tabular-nums'] },
+  propsName: { color: color.text, fontSize: type.md, flex: 1 },
+  propsInfo: { color: color.textFaint, fontSize: type.sm, fontVariant: ['tabular-nums'] },
   propsAction: {
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 8,
-    backgroundColor: '#1c2233',
+    backgroundColor: color.chip,
   },
-  propsActionText: { color: '#c9d6ea', fontSize: 12 },
+  propsActionText: { color: color.textMid, fontSize: type.sm },
   colorChipBack: {
     width: 34,
     height: 34,
     borderRadius: 9,
-    backgroundColor: '#e8e8e8',
+    backgroundColor: color.swatchBack,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: '#3d4a6e',
+    borderColor: color.hairlineBright,
   },
   colorChip: { flex: 1 },
   eyedropBanner: {
@@ -1031,11 +1031,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 14,
-    backgroundColor: '#1c2233ee',
+    backgroundColor: color.chipGlass,
     borderRadius: 18,
     paddingHorizontal: 16,
     paddingVertical: 10,
   },
-  eyedropText: { color: '#e6ecf7', fontSize: 13 },
-  eyedropCancel: { color: '#4da3ff', fontSize: 13, fontWeight: '600' },
+  eyedropText: { color: color.text, fontSize: type.md },
+  eyedropCancel: { color: color.accent, fontSize: type.md, fontWeight: '600' },
 })

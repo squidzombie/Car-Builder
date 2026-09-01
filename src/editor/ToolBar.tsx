@@ -11,7 +11,7 @@ import {
   type RotationMode,
   type SymmetryMode,
 } from './tools'
-import { pressed } from './theme'
+import { color, pressed, type } from './theme'
 
 // M3 tool bar: mode switch plus per-mode options. Deliberately restrained
 // styling — text labels and geometric glyphs, no emoji (user feedback).
@@ -189,30 +189,30 @@ export function ShapeGlyph({ shape, size = GLYPH }: { shape: Shape; size?: numbe
   if (!path) return null
   return (
     <Canvas style={{ width: size, height: size }}>
-      <Path path={path} color="#aeb9d0" />
+      <Path path={path} color={color.glyph} />
     </Canvas>
   )
 }
 
 const styles = StyleSheet.create({
   bar: {
-    backgroundColor: '#0d1120',
+    backgroundColor: color.bgBar,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#232b42',
+    borderTopColor: color.hairline,
     paddingVertical: 6,
     gap: 6,
   },
   modeRow: {
     flexDirection: 'row',
     alignSelf: 'center',
-    backgroundColor: '#12162a',
+    backgroundColor: color.track,
     borderRadius: 8,
     padding: 2,
   },
   modeButton: { paddingHorizontal: 18, paddingVertical: 6, borderRadius: 6 },
-  modeButtonActive: { backgroundColor: '#2a3554' },
-  modeText: { color: '#7f8db0', fontSize: 13 },
-  modeTextActive: { color: '#e6ecf7', fontWeight: '600' },
+  modeButtonActive: { backgroundColor: color.chipActive },
+  modeText: { color: color.textDim, fontSize: type.md },
+  modeTextActive: { color: color.text, fontWeight: '600' },
   optionRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -223,20 +223,20 @@ const styles = StyleSheet.create({
     minWidth: 40,
     height: 34,
     borderRadius: 8,
-    backgroundColor: '#1c2233',
+    backgroundColor: color.chip,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 10,
   },
-  optionActive: { backgroundColor: '#2a3554', borderWidth: 1, borderColor: '#4da3ff' },
-  optionText: { color: '#c9d6ea', fontSize: 12 },
-  hint: { color: '#ffd166', fontSize: 11, textAlign: 'center', paddingHorizontal: 16 },
-  widthDot: { backgroundColor: '#c9d6ea' },
+  optionActive: { backgroundColor: color.chipActive, borderWidth: 1, borderColor: color.accent },
+  optionText: { color: color.textMid, fontSize: type.sm },
+  hint: { color: color.warn, fontSize: type.xs, textAlign: 'center', paddingHorizontal: 16 },
+  widthDot: { backgroundColor: color.textMid },
   colorDot: {
     width: 20,
     height: 20,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#3d4a6e',
+    borderColor: color.hairlineBright,
   },
 })

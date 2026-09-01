@@ -37,7 +37,7 @@ import { ShareViewer } from './src/web/ShareViewer'
 import { shareConfigured } from './src/model/shareConfig'
 import { uploadCard } from './src/model/shareApi'
 import { Sheet } from './src/editor/Sheet'
-import { pressed } from './src/editor/theme'
+import { color, pressed, type as t } from './src/editor/theme'
 
 // On web the app IS the share viewer: /c/{id} renders a card read-only.
 const webShareId =
@@ -170,7 +170,7 @@ function PreviewScreen({ onEdit }: { onEdit: () => void }) {
           <Text style={styles.titleText} numberOfLines={1}>
             {title}
           </Text>
-          <Feather name="edit-2" size={12} color="#5a6478" />
+          <Feather name="edit-2" size={12} color={color.textFaint} />
         </Pressable>
         <View style={styles.buttonRow}>
           <Pressable style={pressed(styles.editButton, styles.primaryButton)} onPress={onEdit} hitSlop={6}>
@@ -210,7 +210,7 @@ function PreviewScreen({ onEdit }: { onEdit: () => void }) {
             onChangeText={setDraftTitle}
             onSubmitEditing={commitTitle}
             placeholder="Untitled card"
-            placeholderTextColor="#5a6478"
+            placeholderTextColor={color.textFaint}
             autoFocus
             selectTextOnFocus
           />
@@ -303,7 +303,7 @@ function ExportSnapshot({
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: '#08090f',
+    backgroundColor: color.bg0,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -315,11 +315,11 @@ const styles = StyleSheet.create({
   },
   buttonRow: { flexDirection: 'row', gap: 10 },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 6, maxWidth: 300 },
-  titleText: { color: '#c9d6ea', fontSize: 14, fontWeight: '600' },
+  titleText: { color: color.textMid, fontSize: t.base, fontWeight: '600' },
   titleInput: {
-    color: '#e6ecf7',
+    color: color.text,
     fontSize: 16,
-    backgroundColor: '#1c2233',
+    backgroundColor: color.chip,
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 10,
@@ -328,12 +328,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingVertical: 10,
     borderRadius: 20,
-    backgroundColor: '#1c2233',
+    backgroundColor: color.chip,
   },
-  editButtonText: { color: '#c9d6ea', fontSize: 14 },
-  primaryButton: { backgroundColor: '#4da3ff' },
-  primaryButtonText: { color: '#0b0e19', fontWeight: '700' },
-  hint: { color: '#5a6478', fontSize: 12 },
+  editButtonText: { color: color.textMid, fontSize: t.base },
+  primaryButton: { backgroundColor: color.accent },
+  primaryButtonText: { color: color.onAccent, fontWeight: '700' },
+  hint: { color: color.textFaint, fontSize: t.sm },
   exportHolder: { position: 'absolute', left: -4000, top: 0 },
   gradeChip: {
     position: 'absolute',
@@ -342,9 +342,9 @@ const styles = StyleSheet.create({
     minHeight: 36,
     paddingHorizontal: 14,
     borderRadius: 18,
-    backgroundColor: '#1c2233',
+    backgroundColor: color.chip,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  gradeChipText: { color: '#c9d6ea', fontSize: 13 },
+  gradeChipText: { color: color.textMid, fontSize: t.md },
 })

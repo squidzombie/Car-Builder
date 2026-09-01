@@ -118,7 +118,7 @@ export function LayerPanel({ onAddPress }: { onAddPress: () => void }) {
                     style={pressed(styles.iconButton)}
                     onPress={() => deleteLayer(layer.id)}
                   >
-                    <Feather name="trash-2" size={15} color="#c76a72" />
+                    <Feather name="trash-2" size={15} color={color.danger} />
                   </Pressable>
                 </View>
               ) : null}
@@ -178,7 +178,7 @@ const styles = StyleSheet.create({
     minHeight: 44,
     paddingHorizontal: 12,
   },
-  rowSelected: { backgroundColor: '#18203a' },
+  rowSelected: { backgroundColor: color.rowSelected },
   selectedBar: {
     position: 'absolute',
     left: 0,
