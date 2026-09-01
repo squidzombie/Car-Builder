@@ -1,4 +1,10 @@
-import { StyleSheet, type TextStyle, type ViewStyle } from 'react-native'
+import {
+  StyleSheet,
+  type PressableStateCallbackType,
+  type StyleProp,
+  type TextStyle,
+  type ViewStyle,
+} from 'react-native'
 
 // Design tokens (Build 3, memory: ui-design-bar). One system everywhere:
 // three background planes, one accent, hierarchy from surface + type —
@@ -62,3 +68,12 @@ export const chipActive: ViewStyle = {
 
 export const chipText: TextStyle = { color: color.textDim, fontSize: type.md }
 export const chipTextActive: TextStyle = { color: color.text }
+
+/**
+ * Pressed-state feedback for Pressable `style` props: dims while touched.
+ * Usage: style={pressed(styles.button, isActive && styles.buttonActive)}
+ */
+export const pressed =
+  (...styles: StyleProp<ViewStyle>[]) =>
+  (state: PressableStateCallbackType): StyleProp<ViewStyle> =>
+    [...styles, state.pressed && { opacity: 0.55 }]

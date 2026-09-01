@@ -1,6 +1,15 @@
-import React from 'react'
-import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, View } from 'react-native'
-import { color, radius, type } from './theme'
+import React, { useEffect, useRef } from 'react'
+import {
+  Animated,
+  BackHandler,
+  Easing,
+  KeyboardAvoidingView,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native'
+import { color, pressed, radius, type } from './theme'
 
 // The one bottom-sheet container (Build 3): grab handle, title row, Done,
 // consistent padding/elevation. `backdrop` dims and closes on tap — use it
@@ -18,17 +27,40 @@ type Props = {
 }
 
 export function Sheet({ title, onClose, closeLabel = 'Done', backdrop, children, headerRight }: Props) {
+  // entrance: sheet slides up a touch while backdrop and content fade in
+  const enter = useRef(new Animated.Value(0)).current
+  useEffect(() => {
+    Animated.timing(enter, {
+      toValue: 1,
+      duration: 240,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start()
+  }, [enter])
+  const translateY = enter.interpolate({ inputRange: [0, 1], outputRange: [36, 0] })
+
+  // Android hardware back closes the sheet, not the app
+  const closeRef = useRef(onClose)
+  closeRef.current = onClose
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      closeRef.current()
+      return true
+    })
+    return () => sub.remove()
+  }, [])
+
   return (
     <View style={styles.overlay} pointerEvents="box-none">
-      {backdrop ? <Pressable style={styles.backdrop} onPress={onClose} /> : null}
-      {/* keep the sheet's inputs above the keyboard (iOS doesn't resize
-          the window the way Android's adjustResize does) */}
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        enabled={Platform.OS === 'ios'}
-        pointerEvents="box-none"
-      >
-        <View style={styles.sheet}>
+      {backdrop ? (
+        <Animated.View style={[styles.backdrop, { opacity: enter }]}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+        </Animated.View>
+      ) : null}
+      {/* keep the sheet's inputs above the keyboard — needed on both
+          platforms: edge-to-edge Android doesn't resize the window either */}
+      <KeyboardAvoidingView behavior="padding" pointerEvents="box-none">
+        <Animated.View style={[styles.sheet, { opacity: enter, transform: [{ translateY }] }]}>
           <View style={styles.handle} />
           <View style={styles.headerRow}>
             <Text style={styles.title} numberOfLines={1}>
@@ -36,13 +68,13 @@ export function Sheet({ title, onClose, closeLabel = 'Done', backdrop, children,
             </Text>
             <View style={styles.headerActions}>
               {headerRight}
-              <Pressable style={styles.doneButton} hitSlop={8} onPress={onClose}>
+              <Pressable style={pressed(styles.doneButton)} hitSlop={8} onPress={onClose}>
                 <Text style={styles.doneText}>{closeLabel}</Text>
               </Pressable>
             </View>
           </View>
           {children}
-        </View>
+        </Animated.View>
       </KeyboardAvoidingView>
     </View>
   )

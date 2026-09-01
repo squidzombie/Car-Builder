@@ -3,6 +3,7 @@ import { Animated, Pressable, StyleSheet, View } from 'react-native'
 import { Canvas, type SkImage } from '@shopify/react-native-skia'
 import type { CardDocument, ViewState } from '../model/types'
 import { CardRenderer } from '../renderer/CardRenderer'
+import { thump } from './haptics'
 
 const MAX_ROTATE_DEG = 14
 
@@ -38,6 +39,7 @@ export function TiltCard({
   const height = Math.round(doc.size.h * scale)
 
   const onFlip = () => {
+    thump()
     flipped.current = !flipped.current
     Animated.spring(flip, {
       toValue: flipped.current ? 1 : 0,

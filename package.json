@@ -1,7 +1,7 @@
 {
   "name": "cardbuilder",
   "version": "1.0.0",
-  "main": "index.ts",
+  "main": "index",
   "dependencies": {
     "@expo-google-fonts/anton": "^0.4.2",
     "@expo-google-fonts/audiowide": "^0.4.1",
@@ -13,6 +13,7 @@
     "@shopify/react-native-skia": "^2.6.2",
     "expo": "~57.0.18",
     "expo-file-system": "~57.0.6",
+    "expo-haptics": "~57.0.2",
     "expo-image-picker": "~57.0.14",
     "expo-sensors": "~57.0.2",
     "expo-sharing": "~57.0.16",

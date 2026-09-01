@@ -38,7 +38,9 @@ import { MaskEditor } from './MaskEditor'
 import { TextEditor } from './TextEditor'
 import { FinishEditor } from './FinishEditor'
 import { useDocImages } from '../view/useDocImages'
+import { tick } from '../view/haptics'
 import { ToolBar, type DrawSettings, type EditorMode, type StampSettings } from './ToolBar'
+import { pressed } from './theme'
 
 // Editor screen (M2 core + M3 tools, CLAUDE.md §4).
 // Select mode: tap-to-select, one-finger drag, two-finger pinch/twist on
@@ -207,6 +209,7 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
   const pinchLayerId = useRef<string | null>(null)
   const gestureStarted = useRef(false)
   const sessionTransformed = useRef(false)
+  const wasSnapped = useRef(false)
   const canvasPinch = useRef<{
     dist: number
     mid: { x: number; y: number }
@@ -522,6 +525,10 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
               return
             }
             const next = applyPinch(pinchStart.current, a, b)
+            // a tick the moment the twist snaps onto a cardinal angle
+            const snapped = next.rotation % 90 === 0
+            if (snapped && !wasSnapped.current) tick()
+            wasSnapped.current = snapped
             sessionTransformed.current = true
             s.updateLayer(sel.id, (l) => void (l.transform = next), { transient: true })
             return
@@ -638,6 +645,7 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
         const s = useEditor.getState()
         const p = docPoint(vx, vy)
         const hit = hitTest(s.doc, s.side, p.x, p.y, { shapeContains: makeShapeContains(s.doc) })
+        if (hit && hit.id !== s.selectedId) tick()
         s.select(hit ? hit.id : null)
       },
       onPanResponderTerminate: () => {
@@ -658,7 +666,7 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
   return (
     <View style={styles.root}>
       <View style={styles.toolbar}>
-        <Pressable style={styles.toolButton} onPress={onPreview} hitSlop={6}>
+        <Pressable style={pressed(styles.toolButton)} onPress={onPreview} hitSlop={6}>
           <Text style={styles.toolText}>Preview</Text>
         </Pressable>
 
@@ -666,7 +674,7 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
           {(['front', 'back'] as const).map((s) => (
             <Pressable
               key={s}
-              style={[styles.sideOption, side === s && styles.sideOptionActive]}
+              style={pressed(styles.sideOption, side === s && styles.sideOptionActive)}
               onPress={() => setSide(s)}
             >
               <Text style={[styles.sideText, side === s && styles.sideTextActive]}>
@@ -678,7 +686,7 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
 
         <View style={styles.historyButtons}>
           <Pressable
-            style={styles.toolButton}
+            style={pressed(styles.toolButton)}
             hitSlop={6}
             disabled={!canUndo}
             onPress={() => useEditor.getState().undo()}
@@ -686,7 +694,7 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
             <Feather name="corner-up-left" size={16} color={canUndo ? '#c9d6ea' : '#3d4560'} />
           </Pressable>
           <Pressable
-            style={styles.toolButton}
+            style={pressed(styles.toolButton)}
             hitSlop={6}
             disabled={!canRedo}
             onPress={() => useEditor.getState().redo()}
@@ -756,7 +764,7 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
             ) : null}
             {view.scale > 1 ? (
               <Pressable
-                style={styles.zoomChip}
+                style={pressed(styles.zoomChip)}
                 hitSlop={6}
                 onPress={() => setView({ scale: 1, x: 0, y: 0 })}
               >
@@ -794,18 +802,18 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
             {(((Math.abs(selected.transform.scaleX) + Math.abs(selected.transform.scaleY)) / 2)).toFixed(2)}
           </Text>
           {selected.type === 'text' ? (
-            <Pressable style={styles.propsAction} hitSlop={6} onPress={() => setTextOpen(true)}>
+            <Pressable style={pressed(styles.propsAction)} hitSlop={6} onPress={() => setTextOpen(true)}>
               <Text style={styles.propsActionText}>Edit</Text>
             </Pressable>
           ) : null}
-          <Pressable style={styles.propsAction} hitSlop={6} onPress={() => setMaskOpen(true)}>
+          <Pressable style={pressed(styles.propsAction)} hitSlop={6} onPress={() => setMaskOpen(true)}>
             <Text style={styles.propsActionText}>{selected.mask ? 'Mask ●' : 'Mask'}</Text>
           </Pressable>
-          <Pressable style={styles.propsAction} hitSlop={6} onPress={() => setFxOpen(true)}>
+          <Pressable style={pressed(styles.propsAction)} hitSlop={6} onPress={() => setFxOpen(true)}>
             <Text style={styles.propsActionText}>{selected.finish ? 'FX ●' : 'FX'}</Text>
           </Pressable>
           {selectedColor ? (
-            <Pressable style={styles.colorChipBack} hitSlop={6} onPress={() => openPicker('layer')}>
+            <Pressable style={pressed(styles.colorChipBack)} hitSlop={6} onPress={() => openPicker('layer')}>
               <View style={[styles.colorChip, { backgroundColor: selectedColor }]} />
             </Pressable>
           ) : null}

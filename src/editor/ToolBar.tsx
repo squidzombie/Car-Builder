@@ -11,6 +11,7 @@ import {
   type RotationMode,
   type SymmetryMode,
 } from './tools'
+import { pressed } from './theme'
 
 // M3 tool bar: mode switch plus per-mode options. Deliberately restrained
 // styling — text labels and geometric glyphs, no emoji (user feedback).
@@ -60,7 +61,7 @@ export function ToolBar(p: Props) {
         {(['select', 'draw', 'stamp'] as const).map((m) => (
           <Pressable
             key={m}
-            style={[styles.modeButton, p.mode === m && styles.modeButtonActive]}
+            style={pressed(styles.modeButton, p.mode === m && styles.modeButtonActive)}
             onPress={() => p.onMode(m)}
           >
             <Text style={[styles.modeText, p.mode === m && styles.modeTextActive]}>
@@ -76,7 +77,7 @@ export function ToolBar(p: Props) {
             {DRAW_WIDTHS.map((w) => (
               <Pressable
                 key={w}
-                style={[styles.option, p.draw.width === w && !p.draw.eraser && styles.optionActive]}
+                style={pressed(styles.option, p.draw.width === w && !p.draw.eraser && styles.optionActive)}
                 onPress={() => p.onDraw({ width: w, eraser: false })}
               >
                 <View
@@ -87,22 +88,22 @@ export function ToolBar(p: Props) {
                 />
               </Pressable>
             ))}
-            <Pressable style={styles.option} onPress={() => p.onOpenColor('draw')}>
+            <Pressable style={pressed(styles.option)} onPress={() => p.onOpenColor('draw')}>
               <View style={[styles.colorDot, { backgroundColor: p.draw.color }]} />
             </Pressable>
             <Pressable
-              style={[styles.option, p.draw.eraser && styles.optionActive]}
+              style={pressed(styles.option, p.draw.eraser && styles.optionActive)}
               onPress={() => p.onDraw({ eraser: !p.draw.eraser })}
             >
               <Text style={styles.optionText}>Eraser</Text>
             </Pressable>
             <Pressable
-              style={[styles.option, p.draw.symmetry !== 'off' && styles.optionActive]}
+              style={pressed(styles.option, p.draw.symmetry !== 'off' && styles.optionActive)}
               onPress={() => p.onDraw({ symmetry: cycle(SYMMETRY_ORDER, p.draw.symmetry) })}
             >
               <Text style={styles.optionText}>{SYMMETRY_LABEL[p.draw.symmetry]}</Text>
             </Pressable>
-            <Pressable style={styles.option} onPress={p.onNewLayer}>
+            <Pressable style={pressed(styles.option)} onPress={p.onNewLayer}>
               <Text style={styles.optionText}>New layer</Text>
             </Pressable>
           </View>
@@ -120,13 +121,13 @@ export function ToolBar(p: Props) {
               {p.shapes.map((s) => (
                 <Pressable
                   key={s.id}
-                  style={[styles.option, p.stamp.shapeId === s.id && styles.optionActive]}
+                  style={pressed(styles.option, p.stamp.shapeId === s.id && styles.optionActive)}
                   onPress={() => p.onStamp({ shapeId: s.id })}
                 >
                   <ShapeGlyph shape={s} />
                 </Pressable>
               ))}
-              <Pressable style={styles.option} onPress={p.onOpenBuilder}>
+              <Pressable style={pressed(styles.option)} onPress={p.onOpenBuilder}>
                 <Text style={styles.optionText}>+ Shape</Text>
               </Pressable>
             </View>
@@ -136,34 +137,34 @@ export function ToolBar(p: Props) {
               {STAMP_SIZES.map((s, i) => (
                 <Pressable
                   key={s}
-                  style={[styles.option, p.stamp.size === s && styles.optionActive]}
+                  style={pressed(styles.option, p.stamp.size === s && styles.optionActive)}
                   onPress={() => p.onStamp({ size: s })}
                 >
                   <Text style={styles.optionText}>{['S', 'M', 'L'][i]}</Text>
                 </Pressable>
               ))}
-              <Pressable style={styles.option} onPress={() => p.onOpenColor('stamp')}>
+              <Pressable style={pressed(styles.option)} onPress={() => p.onOpenColor('stamp')}>
                 <View style={[styles.colorDot, { backgroundColor: p.stamp.color }]} />
               </Pressable>
               <Pressable
-                style={styles.option}
+                style={pressed(styles.option)}
                 onPress={() => p.onStamp({ rotMode: cycle(ROTATION_ORDER, p.stamp.rotMode) })}
               >
                 <Text style={styles.optionText}>{ROTATION_LABEL[p.stamp.rotMode]}</Text>
               </Pressable>
               <Pressable
-                style={[styles.option, p.stamp.jitter && styles.optionActive]}
+                style={pressed(styles.option, p.stamp.jitter && styles.optionActive)}
                 onPress={() => p.onStamp({ jitter: !p.stamp.jitter })}
               >
                 <Text style={styles.optionText}>Jitter</Text>
               </Pressable>
               <Pressable
-                style={[styles.option, p.stamp.symmetry !== 'off' && styles.optionActive]}
+                style={pressed(styles.option, p.stamp.symmetry !== 'off' && styles.optionActive)}
                 onPress={() => p.onStamp({ symmetry: cycle(SYMMETRY_ORDER, p.stamp.symmetry) })}
               >
                 <Text style={styles.optionText}>{SYMMETRY_LABEL[p.stamp.symmetry]}</Text>
               </Pressable>
-              <Pressable style={styles.option} onPress={p.onNewLayer}>
+              <Pressable style={pressed(styles.option)} onPress={p.onNewLayer}>
                 <Text style={styles.optionText}>New layer</Text>
               </Pressable>
             </View>

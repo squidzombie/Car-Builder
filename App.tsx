@@ -1,5 +1,15 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { Platform, Pressable, Share, StyleSheet, Text, View, useWindowDimensions } from 'react-native'
+import {
+  Platform,
+  Pressable,
+  Share,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+  useWindowDimensions,
+} from 'react-native'
+import { Feather } from '@expo/vector-icons'
 import { StatusBar } from 'expo-status-bar'
 import * as FileSystem from 'expo-file-system/legacy'
 import * as Sharing from 'expo-sharing'
@@ -26,6 +36,8 @@ import {
 import { ShareViewer } from './src/web/ShareViewer'
 import { shareConfigured } from './src/model/shareConfig'
 import { uploadCard } from './src/model/shareApi'
+import { Sheet } from './src/editor/Sheet'
+import { pressed } from './src/editor/theme'
 
 // On web the app IS the share viewer: /c/{id} renders a card read-only.
 const webShareId =
@@ -104,9 +116,18 @@ function PreviewScreen({ onEdit }: { onEdit: () => void }) {
   const assets = useDocImages(doc)
   const [choosing, setChoosing] = useState(false)
   const [grading, setGrading] = useState(false)
+  const [renaming, setRenaming] = useState(false)
+  const [draftTitle, setDraftTitle] = useState('')
   const [exportSide, setExportSide] = useState<'front' | 'back' | null>(null)
   const [linking, setLinking] = useState(false)
   const shownSide = useRef<'front' | 'back'>('front')
+
+  const title = doc.meta.title ?? 'Untitled card'
+  const commitTitle = () => {
+    const trimmed = draftTitle.trim()
+    if (trimmed) useEditor.getState().apply((d) => (d.meta.title = trimmed))
+    setRenaming(false)
+  }
 
   const shareLink = async () => {
     if (linking) return
@@ -132,21 +153,34 @@ function PreviewScreen({ onEdit }: { onEdit: () => void }) {
         assets={assets}
         onSideChange={(s) => (shownSide.current = s)}
       />
-      <Pressable style={styles.gradeChip} hitSlop={8} onPress={() => setGrading(true)}>
+      <Pressable style={pressed(styles.gradeChip)} hitSlop={8} onPress={() => setGrading(true)}>
         <Text style={styles.gradeChipText}>
           {doc.condition ? `Grade · ${doc.condition.preset}` : 'Grade'}
         </Text>
       </Pressable>
       <View style={styles.controls}>
+        <Pressable
+          style={pressed(styles.titleRow)}
+          hitSlop={8}
+          onPress={() => {
+            setDraftTitle(doc.meta.title ?? '')
+            setRenaming(true)
+          }}
+        >
+          <Text style={styles.titleText} numberOfLines={1}>
+            {title}
+          </Text>
+          <Feather name="edit-2" size={12} color="#5a6478" />
+        </Pressable>
         <View style={styles.buttonRow}>
-          <Pressable style={styles.editButton} onPress={onEdit} hitSlop={6}>
-            <Text style={styles.editButtonText}>Edit card</Text>
+          <Pressable style={pressed(styles.editButton, styles.primaryButton)} onPress={onEdit} hitSlop={6}>
+            <Text style={[styles.editButtonText, styles.primaryButtonText]}>Edit card</Text>
           </Pressable>
-          <Pressable style={styles.editButton} onPress={() => setChoosing(true)} hitSlop={6}>
-            <Text style={styles.editButtonText}>New card</Text>
+          <Pressable style={pressed(styles.editButton)} onPress={() => setChoosing(true)} hitSlop={6}>
+            <Text style={styles.editButtonText}>New</Text>
           </Pressable>
           <Pressable
-            style={styles.editButton}
+            style={pressed(styles.editButton)}
             hitSlop={6}
             disabled={exportSide !== null}
             onPress={() => setExportSide(shownSide.current)}
@@ -157,7 +191,7 @@ function PreviewScreen({ onEdit }: { onEdit: () => void }) {
           </Pressable>
           {shareConfigured() ? (
             <Pressable
-              style={styles.editButton}
+              style={pressed(styles.editButton)}
               hitSlop={6}
               disabled={linking}
               onPress={shareLink}
@@ -168,6 +202,20 @@ function PreviewScreen({ onEdit }: { onEdit: () => void }) {
         </View>
         <Text style={styles.hint}>Tilt or drag to shine • tap to flip • Share exports this side</Text>
       </View>
+      {renaming ? (
+        <Sheet title="Card name" onClose={commitTitle} backdrop>
+          <TextInput
+            style={styles.titleInput}
+            value={draftTitle}
+            onChangeText={setDraftTitle}
+            onSubmitEditing={commitTitle}
+            placeholder="Untitled card"
+            placeholderTextColor="#5a6478"
+            autoFocus
+            selectTextOnFocus
+          />
+        </Sheet>
+      ) : null}
       {choosing ? (
         <TemplateChooser
           onClose={() => setChoosing(false)}
@@ -266,6 +314,16 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   buttonRow: { flexDirection: 'row', gap: 10 },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 6, maxWidth: 300 },
+  titleText: { color: '#c9d6ea', fontSize: 14, fontWeight: '600' },
+  titleInput: {
+    color: '#e6ecf7',
+    fontSize: 16,
+    backgroundColor: '#1c2233',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
   editButton: {
     paddingHorizontal: 18,
     paddingVertical: 10,
@@ -273,6 +331,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#1c2233',
   },
   editButtonText: { color: '#c9d6ea', fontSize: 14 },
+  primaryButton: { backgroundColor: '#4da3ff' },
+  primaryButtonText: { color: '#0b0e19', fontWeight: '700' },
   hint: { color: '#5a6478', fontSize: 12 },
   exportHolder: { position: 'absolute', left: -4000, top: 0 },
   gradeChip: {

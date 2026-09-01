@@ -3,7 +3,7 @@ import { FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-na
 import { Feather } from '@expo/vector-icons'
 import type { Layer } from '../model/types'
 import { useEditor } from '../state/useEditor'
-import { color, type } from './theme'
+import { color, pressed, type } from './theme'
 
 // Bottom layer panel (CLAUDE.md §4): select / reorder / rename / lock /
 // hide / duplicate / delete. Top layer listed first. Adding goes through
@@ -44,7 +44,7 @@ export function LayerPanel({ onAddPress }: { onAddPress: () => void }) {
     <View style={styles.panel}>
       <View style={styles.header}>
         <Text style={styles.title}>Layers</Text>
-        <Pressable style={styles.addButton} hitSlop={8} onPress={onAddPress}>
+        <Pressable style={pressed(styles.addButton)} hitSlop={8} onPress={onAddPress}>
           <Feather name="plus" size={18} color={color.textMid} />
         </Pressable>
       </View>
@@ -115,7 +115,7 @@ export function LayerPanel({ onAddPress }: { onAddPress: () => void }) {
                   <View style={styles.actionDivider} />
                   <Pressable
                     hitSlop={6}
-                    style={styles.iconButton}
+                    style={pressed(styles.iconButton)}
                     onPress={() => deleteLayer(layer.id)}
                   >
                     <Feather name="trash-2" size={15} color="#c76a72" />
@@ -141,7 +141,7 @@ function IconButton({
   dim?: boolean
 }) {
   return (
-    <Pressable hitSlop={6} style={styles.iconButton} onPress={onPress}>
+    <Pressable hitSlop={6} style={pressed(styles.iconButton)} onPress={onPress}>
       <Feather name={name} size={15} color={dim ? color.textFaint : color.textDim} />
     </Pressable>
   )
