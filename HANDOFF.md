@@ -1,4 +1,37 @@
-# Handoff — state of the project as of 2026-08-31 (late: M3 done, M4 core done)
+# Handoff — state of the project as of 2026-08-31 (night: TestFlight live)
+
+## Beta feedback from Max's iPhone — FIX FIRST next session
+
+1. **Gyro baseline bug (`src/view/useTilt.ts`)**: opening the app with the
+   phone held tilted captures that pose as the zero baseline; returning
+   the phone to normal leaves the card "way tilted and it doesn't
+   recover." The baseline is captured once and never re-calibrates.
+   Fix sketch: continuously drift the baseline toward the smoothed
+   current reading with a long time constant (~3-5s) so any sustained
+   pose becomes the new zero, while fast tilts still shine — or
+   re-baseline when the offset stays saturated for >2s. Verify by
+   launching the app with the phone flat on a table vs held sideways.
+2. **Add-layer dropdown contrast (`src/editor/LayerPanel.tsx`)**: the "+"
+   options row blends into the layer rows below. Transient surfaces need
+   to read as a distinct elevated plane (lighter surface color, border,
+   or shadow).
+3. **Design bar raised**: "the UI is packing a lot in so we need to be
+   high end... lessons learned throughout the years of Apple and Adobe."
+   Treat dense-UI hierarchy seriously in every UI change from now on;
+   don't defer egregious cases to M7. (See memory: ui-design-bar.)
+
+## TestFlight state
+
+- First build uploaded 2026-08-31 via EAS (project
+  @squidzombie/cardbuilder, Expo account squidzombie already logged in on
+  this machine; ASC auth = EAS-stored auto-generated API key).
+- External group "Squids" with public link
+  https://testflight.apple.com/join/Zv35qcan — pending Beta App Review
+  (check Test Information is filled + build compliance answered).
+- Update flow: `npx eas-cli build -p ios --profile production &&
+  npx eas-cli submit -p ios --latest`.
+
+---
 
 ## Latest slice (fonts + finish editor) — emulator-verified
 
