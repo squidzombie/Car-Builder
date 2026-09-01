@@ -278,6 +278,21 @@ export function makeFillLayer(paint: Paint): Layer {
   }
 }
 
+/** Centered display-text layer (Add sheet). */
+export function makeTextLayer(): Layer {
+  return {
+    id: newLayerId('text'),
+    name: 'Text',
+    type: 'text',
+    transform: { x: CARD_W / 2, y: 520, rotation: 0, scaleX: 1, scaleY: 1 },
+    opacity: 1,
+    blendMode: 'srcOver',
+    locked: false,
+    visible: true,
+    text: { content: 'YOUR TEXT', font: 'anton', size: 72, color: '#ffffff', align: 'c' },
+  }
+}
+
 /** Photo layer scaled to fit the card width, centered (M3). */
 export function makeImageLayer(assetId: string, srcW: number, srcH: number): Layer {
   const w = Math.round(CARD_W * 0.9)

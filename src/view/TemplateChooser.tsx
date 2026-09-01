@@ -6,6 +6,8 @@ import { defaultViewState, type CardDocument } from '../model/types'
 import { TEMPLATES } from '../templates'
 import { deleteCard, listCardDocs } from '../model/storage'
 import { useDocImages } from './useDocImages'
+import { Sheet } from '../editor/Sheet'
+import { color, type } from '../editor/theme'
 
 // New-card template chooser (M5, §8) plus the saved-cards shelf (M6):
 // live CardRenderer previews for both. Templates start a fresh document;
@@ -33,12 +35,10 @@ export function TemplateChooser({ onPick, onOpenSaved, onClose }: Props) {
   }, [])
 
   return (
-    <View style={styles.overlay} pointerEvents="box-none">
-      <Pressable style={styles.backdrop} onPress={onClose} />
-      <View style={styles.sheet}>
+    <Sheet title="New card" onClose={onClose} closeLabel="Close" backdrop>
         {saved.length > 0 ? (
           <>
-            <Text style={styles.title}>Your cards · hold to delete</Text>
+            <Text style={styles.sectionTitle}>Your cards · hold to delete</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               <View style={styles.shelf}>
                 {saved.map((doc) => (
@@ -56,7 +56,7 @@ export function TemplateChooser({ onPick, onOpenSaved, onClose }: Props) {
             </ScrollView>
           </>
         ) : null}
-        <Text style={styles.title}>New card</Text>
+        <Text style={styles.sectionTitle}>Templates</Text>
         <View style={styles.grid}>
           {previews.map(({ template, doc }) => (
             <Pressable
@@ -80,9 +80,8 @@ export function TemplateChooser({ onPick, onOpenSaved, onClose }: Props) {
             </Pressable>
           ))}
         </View>
-        <Text style={styles.hint}>Starting a new card replaces the current one</Text>
-      </View>
-    </View>
+        <Text style={styles.hint}>Your current card is saved automatically</Text>
+    </Sheet>
   )
 }
 
@@ -119,34 +118,7 @@ function SavedTile({
 }
 
 const styles = StyleSheet.create({
-  overlay: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    top: 0,
-    bottom: 0,
-    justifyContent: 'flex-end',
-  },
-  backdrop: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    top: 0,
-    bottom: 0,
-    backgroundColor: '#000000aa',
-  },
-  sheet: {
-    backgroundColor: '#10141f',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingTop: 16,
-    paddingBottom: 40,
-    paddingHorizontal: 20,
-    gap: 14,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#2a3554',
-  },
-  title: { color: '#e6ecf7', fontSize: 16, fontWeight: '600' },
+  sectionTitle: { color: color.textDim, fontSize: type.sm },
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -160,9 +132,9 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: '#2a3554',
+    borderColor: color.hairlineBright,
   },
-  tileLabel: { color: '#c9d6ea', fontSize: 13 },
-  hint: { color: '#3d4560', fontSize: 11, textAlign: 'center' },
+  tileLabel: { color: color.textMid, fontSize: type.md },
+  hint: { color: color.textGhost, fontSize: type.xs, textAlign: 'center' },
   shelf: { flexDirection: 'row', gap: 12, paddingVertical: 2 },
 })

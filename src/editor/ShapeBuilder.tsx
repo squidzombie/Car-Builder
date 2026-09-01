@@ -6,6 +6,8 @@ import { useEditor } from '../state/useEditor'
 import { newLayerId } from '../state/editorStore'
 import { ShapeGlyph } from './ToolBar'
 import { MiniSlider } from './MiniSlider'
+import { Sheet } from './Sheet'
+import { color, radius, type } from './theme'
 
 // Custom polygon builder (CLAUDE.md §4): sides 3–24, optional star inset,
 // optional corner rounding. Saved shapes live in CardDocument.shapes so
@@ -48,17 +50,18 @@ export function ShapeBuilder({ onClose, onSaved }: Props) {
   }
 
   return (
-    <View style={styles.overlay} pointerEvents="box-none">
-      <Pressable style={styles.backdrop} onPress={onClose} />
-      <View style={styles.sheet}>
-        <View style={styles.headerRow}>
-          <Text style={styles.title}>Custom shape</Text>
-          <Pressable style={styles.saveButton} hitSlop={6} onPress={save}>
-            <Text style={styles.saveText}>Save</Text>
-          </Pressable>
-        </View>
-
-        <View style={styles.previewRow}>
+    <Sheet
+      title="Custom shape"
+      onClose={onClose}
+      closeLabel="Cancel"
+      backdrop
+      headerRight={
+        <Pressable style={styles.saveButton} hitSlop={8} onPress={save}>
+          <Text style={styles.saveText}>Save</Text>
+        </Pressable>
+      }
+    >
+      <View style={styles.previewRow}>
           <View style={styles.previewBox}>
             <ShapeGlyph shape={preview} size={96} />
           </View>
@@ -92,54 +95,26 @@ export function ShapeBuilder({ onClose, onSaved }: Props) {
           max={0.4}
           onChange={setRounding}
         />
-      </View>
-    </View>
+    </Sheet>
   )
 }
 
 const styles = StyleSheet.create({
-  overlay: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    top: 0,
-    bottom: 0,
-    justifyContent: 'flex-end',
-  },
-  backdrop: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    top: 0,
-    bottom: 0,
-    backgroundColor: '#00000066',
-  },
-  sheet: {
-    backgroundColor: '#10141f',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingTop: 14,
-    paddingBottom: 34,
-    paddingHorizontal: 16,
-    gap: 12,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#2a3554',
-  },
-  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  title: { color: '#e6ecf7', fontSize: 15, fontWeight: '600' },
   saveButton: {
+    minHeight: 36,
     paddingHorizontal: 16,
-    paddingVertical: 9,
-    borderRadius: 10,
-    backgroundColor: '#2a3554',
+    borderRadius: radius.md,
+    backgroundColor: color.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  saveText: { color: '#e6ecf7', fontSize: 14, fontWeight: '600' },
+  saveText: { color: '#0b0e19', fontSize: type.base, fontWeight: '700' },
   previewRow: { alignItems: 'center' },
   previewBox: {
     width: 120,
     height: 120,
-    borderRadius: 12,
-    backgroundColor: '#1c2233',
+    borderRadius: radius.lg,
+    backgroundColor: color.chip,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -149,5 +124,5 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingRight: 4,
   },
-  sliderLabel: { color: '#7f8db0', fontSize: 12 },
+  sliderLabel: { color: color.textDim, fontSize: type.sm },
 })

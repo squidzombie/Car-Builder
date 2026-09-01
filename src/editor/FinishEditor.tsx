@@ -4,6 +4,8 @@ import type { FinishFamily, Layer } from '../model/types'
 import { FINISH_PRESETS, makeFinish } from '../finishes/presets'
 import { useEditor } from '../state/useEditor'
 import { MiniSlider } from './MiniSlider'
+import { Sheet } from './Sheet'
+import { chip, chipActive, chipText, chipTextActive, color, type } from './theme'
 
 // Finish picker (M4, CLAUDE.md §5): per-layer family + preset, intensity
 // and pattern scale, and the palette mode — 'custom' feeds the card's
@@ -42,16 +44,8 @@ export function FinishEditor({ layerId, onClose }: Props) {
   }
 
   return (
-    <View style={styles.overlay} pointerEvents="box-none">
-      <View style={styles.sheet}>
-        <View style={styles.headerRow}>
-          <Text style={styles.title}>Finish · {layer.name}</Text>
-          <Pressable style={styles.doneButton} hitSlop={6} onPress={onClose}>
-            <Text style={styles.doneText}>Done</Text>
-          </Pressable>
-        </View>
-
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+    <Sheet title={`Finish · ${layer.name}`} onClose={onClose}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
           <View style={styles.chipRow}>
             <Pressable
               style={[styles.chip, !finish && styles.chipActive]}
@@ -149,52 +143,18 @@ export function FinishEditor({ layerId, onClose }: Props) {
         ) : (
           <Text style={styles.hint}>Pick a preset to give this layer a holo finish</Text>
         )}
-      </View>
-    </View>
+    </Sheet>
   )
 }
 
 const styles = StyleSheet.create({
-  overlay: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    top: 0,
-    bottom: 0,
-    justifyContent: 'flex-end',
-  },
-  sheet: {
-    backgroundColor: '#10141f',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingTop: 14,
-    paddingBottom: 34,
-    paddingHorizontal: 16,
-    gap: 12,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#2a3554',
-  },
-  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  title: { color: '#e6ecf7', fontSize: 15, fontWeight: '600' },
-  doneButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 9,
-    borderRadius: 10,
-    backgroundColor: '#2a3554',
-  },
-  doneText: { color: '#e6ecf7', fontSize: 14, fontWeight: '600' },
   chipRow: { flexDirection: 'row', gap: 8 },
-  chip: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: '#1c2233',
-  },
-  chipActive: { backgroundColor: '#2a3554', borderWidth: 1, borderColor: '#4da3ff' },
-  chipText: { color: '#7f8db0', fontSize: 13 },
-  chipTextActive: { color: '#e6ecf7' },
-  chipTextFocus: { color: '#c9d6ea' },
+  chip,
+  chipActive,
+  chipText,
+  chipTextActive,
+  chipTextFocus: { color: color.textMid },
   paletteRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  paletteLabel: { color: '#7f8db0', fontSize: 12, marginRight: 4 },
-  hint: { color: '#3d4560', fontSize: 12, textAlign: 'center', paddingVertical: 8 },
+  paletteLabel: { color: color.textDim, fontSize: type.sm, marginRight: 4 },
+  hint: { color: color.textGhost, fontSize: type.sm, textAlign: 'center', paddingVertical: 8 },
 })

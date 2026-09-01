@@ -4,6 +4,8 @@ import type { Layer } from '../model/types'
 import { FONT_CHOICES } from '../renderer/fonts'
 import { useEditor } from '../state/useEditor'
 import { MiniSlider } from './MiniSlider'
+import { Sheet } from './Sheet'
+import { chip, chipActive, chipText, chipTextActive, color, type } from './theme'
 
 // Text layer editor (M3, §4 basics): content, size, alignment. Edits are
 // transient inside one gesture group per control interaction; the card
@@ -22,16 +24,8 @@ export function TextEditor({ layerId, onClose }: Props) {
   }
 
   return (
-    <View style={styles.overlay} pointerEvents="box-none">
-      <View style={styles.sheet}>
-        <View style={styles.headerRow}>
-          <Text style={styles.title}>Text · {layer.name}</Text>
-          <Pressable style={styles.doneButton} hitSlop={6} onPress={onClose}>
-            <Text style={styles.doneText}>Done</Text>
-          </Pressable>
-        </View>
-
-        <TextInput
+    <Sheet title={`Text · ${layer.name}`} onClose={onClose}>
+      <TextInput
           style={styles.input}
           value={t.content}
           onFocus={() => useEditor.getState().beginGesture()}
@@ -86,56 +80,22 @@ export function TextEditor({ layerId, onClose }: Props) {
             </Pressable>
           ))}
         </View>
-      </View>
-    </View>
+    </Sheet>
   )
 }
 
 const styles = StyleSheet.create({
-  overlay: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    top: 0,
-    bottom: 0,
-    justifyContent: 'flex-end',
-  },
-  sheet: {
-    backgroundColor: '#10141f',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingTop: 14,
-    paddingBottom: 34,
-    paddingHorizontal: 16,
-    gap: 12,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#2a3554',
-  },
-  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  title: { color: '#e6ecf7', fontSize: 15, fontWeight: '600' },
-  doneButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 9,
-    borderRadius: 10,
-    backgroundColor: '#2a3554',
-  },
-  doneText: { color: '#e6ecf7', fontSize: 14, fontWeight: '600' },
   input: {
-    color: '#e6ecf7',
+    color: color.text,
     fontSize: 16,
-    backgroundColor: '#1c2233',
+    backgroundColor: color.chip,
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 10,
   },
   alignRow: { flexDirection: 'row', gap: 8 },
-  alignChip: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: '#1c2233',
-  },
-  alignChipActive: { backgroundColor: '#2a3554', borderWidth: 1, borderColor: '#4da3ff' },
-  alignText: { color: '#7f8db0', fontSize: 13 },
-  alignTextActive: { color: '#e6ecf7' },
+  alignChip: chip,
+  alignChipActive: chipActive,
+  alignText: chipText,
+  alignTextActive: chipTextActive,
 })

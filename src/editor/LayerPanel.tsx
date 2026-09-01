@@ -1,44 +1,35 @@
 import React, { useState } from 'react'
 import { FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
-import * as ImagePicker from 'expo-image-picker'
+import { Feather } from '@expo/vector-icons'
 import type { Layer } from '../model/types'
-import { registerAsset, setAssetUri } from '../model/assets'
-import { persistAsset } from '../model/storage'
 import { useEditor } from '../state/useEditor'
-import { makeFillLayer, makeImageLayer, makeShapeLayer } from '../state/editorStore'
+import { color, type } from './theme'
 
 // Bottom layer panel (CLAUDE.md §4): select / reorder / rename / lock /
-// hide / duplicate / delete. The list shows the TOP layer first, matching
-// how people think about stacking.
+// hide / duplicate / delete. Top layer listed first. Adding goes through
+// the sectioned AddSheet (Build 3) via onAddPress.
 
-const TYPE_ICON: Record<Layer['type'], string> = {
-  fill: '▦',
-  image: '◱',
-  shape: '◆',
-  path: '〰',
-  stamp: '✦',
-  text: 'T',
+type FeatherName = React.ComponentProps<typeof Feather>['name']
+
+const TYPE_ICON: Record<Layer['type'], FeatherName> = {
+  fill: 'square',
+  image: 'image',
+  shape: 'octagon',
+  path: 'edit-3',
+  stamp: 'star',
+  text: 'type',
 }
 
-const ADD_CHOICES = [
-  { label: '▦ Fill', make: () => makeFillLayer({ color: '#12355b' }) },
-  { label: '■ Square', make: () => makeShapeLayer('square', { color: '#e63946' }) },
-  { label: '● Circle', make: () => makeShapeLayer('circle', { color: '#f1c40f' }) },
-  { label: '★ Star', make: () => makeShapeLayer('star5', { color: '#2ec4b6' }) },
-]
-
-export function LayerPanel() {
+export function LayerPanel({ onAddPress }: { onAddPress: () => void }) {
   const layers = useEditor((s) => s.doc[s.side].layers)
   const selectedId = useEditor((s) => s.selectedId)
   const select = useEditor((s) => s.select)
-  const addLayer = useEditor((s) => s.addLayer)
   const deleteLayer = useEditor((s) => s.deleteLayer)
   const duplicateLayer = useEditor((s) => s.duplicateLayer)
   const moveLayer = useEditor((s) => s.moveLayer)
   const renameLayer = useEditor((s) => s.renameLayer)
   const setLayerProps = useEditor((s) => s.setLayerProps)
 
-  const [adding, setAdding] = useState(false)
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [draftName, setDraftName] = useState('')
 
@@ -53,51 +44,10 @@ export function LayerPanel() {
     <View style={styles.panel}>
       <View style={styles.header}>
         <Text style={styles.title}>Layers</Text>
-        <Pressable
-          style={styles.addButton}
-          hitSlop={8}
-          onPress={() => setAdding((v) => !v)}
-        >
-          <Text style={styles.addButtonText}>{adding ? '×' : '+'}</Text>
+        <Pressable style={styles.addButton} hitSlop={8} onPress={onAddPress}>
+          <Feather name="plus" size={18} color={color.textMid} />
         </Pressable>
       </View>
-
-      {adding ? (
-        <View style={styles.addRow}>
-          <Pressable
-            style={styles.addChoice}
-            onPress={async () => {
-              setAdding(false)
-              const res = await ImagePicker.launchImageLibraryAsync({
-                mediaTypes: ['images'],
-                quality: 1,
-              })
-              const asset = res.assets?.[0]
-              if (res.canceled || !asset) return
-              const assetId = registerAsset(asset.uri)
-              // copy out of the picker cache so the photo survives restarts
-              persistAsset(asset.uri, assetId)
-                .then((uri) => setAssetUri(assetId, uri))
-                .catch(() => {})
-              addLayer(makeImageLayer(assetId, asset.width ?? 1000, asset.height ?? 1000))
-            }}
-          >
-            <Text style={styles.addChoiceText}>◱ Photo</Text>
-          </Pressable>
-          {ADD_CHOICES.map((choice) => (
-            <Pressable
-              key={choice.label}
-              style={styles.addChoice}
-              onPress={() => {
-                addLayer(choice.make())
-                setAdding(false)
-              }}
-            >
-              <Text style={styles.addChoiceText}>{choice.label}</Text>
-            </Pressable>
-          ))}
-        </View>
-      ) : null}
 
       <FlatList
         data={topFirst}
@@ -117,7 +67,12 @@ export function LayerPanel() {
                   setDraftName(layer.name)
                 }}
               >
-                <Text style={styles.typeIcon}>{TYPE_ICON[layer.type]}</Text>
+                <Feather
+                  name={TYPE_ICON[layer.type]}
+                  size={14}
+                  color={selected ? color.textMid : color.textDim}
+                  style={styles.typeIcon}
+                />
                 {renamingId === layer.id ? (
                   <TextInput
                     style={styles.nameInput}
@@ -138,35 +93,23 @@ export function LayerPanel() {
                 )}
               </Pressable>
 
-              <Pressable
-                hitSlop={6}
-                style={styles.iconButton}
+              <IconButton
+                name={layer.visible ? 'eye' : 'eye-off'}
+                dim={!layer.visible}
                 onPress={() => setLayerProps(layer.id, { visible: !layer.visible })}
-              >
-                <Text style={styles.icon}>{layer.visible ? '👁' : '−'}</Text>
-              </Pressable>
-              <Pressable
-                hitSlop={6}
-                style={styles.iconButton}
+              />
+              <IconButton
+                name={layer.locked ? 'lock' : 'unlock'}
+                dim={!layer.locked}
                 onPress={() => setLayerProps(layer.id, { locked: !layer.locked })}
-              >
-                <Text style={styles.icon}>{layer.locked ? '🔒' : '🔓'}</Text>
-              </Pressable>
+              />
 
               {selected ? (
                 <View style={styles.actions}>
-                  <Pressable hitSlop={6} style={styles.iconButton} onPress={() => moveLayer(layer.id, 1)}>
-                    <Text style={styles.icon}>▲</Text>
-                  </Pressable>
-                  <Pressable hitSlop={6} style={styles.iconButton} onPress={() => moveLayer(layer.id, -1)}>
-                    <Text style={styles.icon}>▼</Text>
-                  </Pressable>
-                  <Pressable hitSlop={6} style={styles.iconButton} onPress={() => duplicateLayer(layer.id)}>
-                    <Text style={styles.icon}>⧉</Text>
-                  </Pressable>
-                  <Pressable hitSlop={6} style={styles.iconButton} onPress={() => deleteLayer(layer.id)}>
-                    <Text style={styles.icon}>🗑</Text>
-                  </Pressable>
+                  <IconButton name="chevron-up" onPress={() => moveLayer(layer.id, 1)} />
+                  <IconButton name="chevron-down" onPress={() => moveLayer(layer.id, -1)} />
+                  <IconButton name="copy" onPress={() => duplicateLayer(layer.id)} />
+                  <IconButton name="trash-2" onPress={() => deleteLayer(layer.id)} />
                 </View>
               ) : null}
             </View>
@@ -178,11 +121,27 @@ export function LayerPanel() {
   )
 }
 
+function IconButton({
+  name,
+  onPress,
+  dim,
+}: {
+  name: FeatherName
+  onPress: () => void
+  dim?: boolean
+}) {
+  return (
+    <Pressable hitSlop={6} style={styles.iconButton} onPress={onPress}>
+      <Feather name={name} size={15} color={dim ? color.textFaint : color.textDim} />
+    </Pressable>
+  )
+}
+
 const styles = StyleSheet.create({
   panel: {
-    backgroundColor: '#0d1120',
+    backgroundColor: color.bg1,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#232b42',
+    borderTopColor: color.hairline,
     maxHeight: 300,
     paddingBottom: 24,
   },
@@ -193,40 +152,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 10,
   },
-  title: { color: '#c9d6ea', fontSize: 15, fontWeight: '600' },
+  title: { color: color.textMid, fontSize: type.lg, fontWeight: '600' },
   addButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#1c2233',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: color.chip,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  addButtonText: { color: '#c9d6ea', fontSize: 20, lineHeight: 22 },
-  addRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginHorizontal: 12,
-    marginBottom: 10,
-    padding: 8,
-    borderRadius: 12,
-    backgroundColor: '#1a2136',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#3d4a6e',
-    shadowColor: '#000000',
-    shadowOpacity: 0.45,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 8,
-  },
-  addChoice: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: '#242e4d',
-  },
-  addChoiceText: { color: '#c9d6ea', fontSize: 13 },
-  empty: { color: '#5a6478', fontSize: 13, textAlign: 'center', paddingVertical: 18 },
+  empty: { color: color.textFaint, fontSize: type.md, textAlign: 'center', paddingVertical: 18 },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -235,19 +170,23 @@ const styles = StyleSheet.create({
   },
   rowSelected: { backgroundColor: '#18203a' },
   rowMain: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 },
-  typeIcon: { color: '#7f8db0', fontSize: 15, width: 20, textAlign: 'center' },
-  name: { color: '#e6ecf7', fontSize: 14, flexShrink: 1 },
-  nameHidden: { color: '#5a6478', textDecorationLine: 'line-through' },
+  typeIcon: { width: 18, textAlign: 'center' },
+  name: { color: color.text, fontSize: type.base, flexShrink: 1 },
+  nameHidden: { color: color.textFaint, textDecorationLine: 'line-through' },
   nameInput: {
-    color: '#e6ecf7',
-    fontSize: 14,
+    color: color.text,
+    fontSize: type.base,
     flex: 1,
     paddingVertical: 2,
     borderBottomWidth: 1,
-    borderBottomColor: '#3d4a6e',
+    borderBottomColor: color.hairlineBright,
   },
-  iconButton: { paddingHorizontal: 6, paddingVertical: 8 },
-  icon: { color: '#8fa2c7', fontSize: 14 },
+  iconButton: {
+    width: 34,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   actions: { flexDirection: 'row', alignItems: 'center' },
-  hintText: { color: '#3d4560', fontSize: 11, textAlign: 'center', paddingTop: 6 },
+  hintText: { color: color.textGhost, fontSize: type.xs, textAlign: 'center', paddingTop: 6 },
 })

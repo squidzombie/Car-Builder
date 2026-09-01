@@ -3,6 +3,8 @@ import { Pressable, StyleSheet, Text, View } from 'react-native'
 import type { Layer, Mask } from '../model/types'
 import { useEditor } from '../state/useEditor'
 import { MiniSlider } from './MiniSlider'
+import { Sheet } from './Sheet'
+import { chip, chipActive, chipText, chipTextActive } from './theme'
 
 // Fade-mask editor (CLAUDE.md §4): linear/radial fades with adjustable
 // angle and softness — the classic "player fades into background" look.
@@ -40,16 +42,8 @@ export function MaskEditor({ layerId, onClose }: Props) {
   const p = mask?.params ?? {}
 
   return (
-    <View style={styles.overlay} pointerEvents="box-none">
-      <View style={styles.sheet}>
-        <View style={styles.headerRow}>
-          <Text style={styles.title}>Fade mask · {layer.name}</Text>
-          <Pressable style={styles.doneButton} hitSlop={6} onPress={onClose}>
-            <Text style={styles.doneText}>Done</Text>
-          </Pressable>
-        </View>
-
-        <View style={styles.typeRow}>
+    <Sheet title={`Fade mask · ${layer.name}`} onClose={onClose}>
+      <View style={styles.typeRow}>
           {(
             [
               ['none', 'None'],
@@ -131,8 +125,7 @@ export function MaskEditor({ layerId, onClose }: Props) {
             />
           </>
         ) : null}
-      </View>
-    </View>
+    </Sheet>
   )
 }
 
@@ -142,42 +135,9 @@ const rsoftness = (p: Record<string, number>) =>
   Math.max(0.02, (p.outer ?? 0.95) - (p.inner ?? 0.45))
 
 const styles = StyleSheet.create({
-  overlay: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    top: 0,
-    bottom: 0,
-    justifyContent: 'flex-end',
-  },
-  sheet: {
-    backgroundColor: '#10141f',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingTop: 14,
-    paddingBottom: 34,
-    paddingHorizontal: 16,
-    gap: 12,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#2a3554',
-  },
-  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  title: { color: '#e6ecf7', fontSize: 15, fontWeight: '600' },
-  doneButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 9,
-    borderRadius: 10,
-    backgroundColor: '#2a3554',
-  },
-  doneText: { color: '#e6ecf7', fontSize: 14, fontWeight: '600' },
   typeRow: { flexDirection: 'row', gap: 8 },
-  typeChip: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: '#1c2233',
-  },
-  typeChipActive: { backgroundColor: '#2a3554', borderWidth: 1, borderColor: '#4da3ff' },
-  typeText: { color: '#7f8db0', fontSize: 13 },
-  typeTextActive: { color: '#e6ecf7' },
+  typeChip: chip,
+  typeChipActive: chipActive,
+  typeText: chipText,
+  typeTextActive: chipTextActive,
 })

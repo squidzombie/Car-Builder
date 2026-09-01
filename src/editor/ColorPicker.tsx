@@ -22,6 +22,8 @@ import {
 } from '../model/color'
 import { useEditor } from '../state/useEditor'
 import { STARTER_PALETTES } from '../model/starterPalettes'
+import { Sheet } from './Sheet'
+import { Feather } from '@expo/vector-icons'
 
 // Color picker (CLAUDE.md §6): hue wheel + saturation/value square, hex
 // input, alpha slider, pinned swatches, recents, eyedropper. Rendered as a
@@ -43,7 +45,7 @@ type Props = {
 
 export function ColorPicker({ value, onChange, onGestureStart, onClose, onEyedropper }: Props) {
   const { width: screenW } = useWindowDimensions()
-  const wheelSize = Math.min(screenW - 64, 264)
+  const wheelSize = Math.min(screenW - 64, 240)
   const sliderW = Math.min(screenW - 48, 300)
 
   const pinned = useEditor((s) => s.doc.palette.pinned)
@@ -208,10 +210,8 @@ export function ColorPicker({ value, onChange, onGestureStart, onClose, onEyedro
   }, [sliderW])
 
   return (
-    <View style={styles.overlay} pointerEvents="box-none">
-      <Pressable style={styles.backdrop} onPress={onClose} />
-      <View style={styles.sheet}>
-        <View style={styles.headerRow}>
+    <Sheet title="Color" onClose={onClose} backdrop>
+      <View style={styles.headerRow}>
           <View style={[styles.previewBack]}>
             <View style={[styles.preview, { backgroundColor: hex }]} />
           </View>
@@ -225,15 +225,10 @@ export function ColorPicker({ value, onChange, onGestureStart, onClose, onEyedro
             autoCorrect={false}
           />
           <Pressable style={styles.headerButton} hitSlop={6} onPress={togglePin}>
-            <Text style={[styles.headerButtonText, isPinned && styles.pinActive]}>
-              {isPinned ? '★' : '☆'}
-            </Text>
+            <Feather name="bookmark" size={17} color={isPinned ? '#ffd166' : '#c9d6ea'} />
           </Pressable>
           <Pressable style={styles.headerButton} hitSlop={6} onPress={onEyedropper}>
-            <Text style={styles.headerButtonText}>⊙</Text>
-          </Pressable>
-          <Pressable style={styles.doneButton} hitSlop={6} onPress={onClose}>
-            <Text style={styles.doneText}>Done</Text>
+            <Feather name="crosshair" size={17} color="#c9d6ea" />
           </Pressable>
         </View>
 
@@ -360,8 +355,7 @@ export function ColorPicker({ value, onChange, onGestureStart, onClose, onEyedro
             </View>
           </ScrollView>
         </View>
-      </View>
-    </View>
+    </Sheet>
   )
 }
 
@@ -547,37 +541,10 @@ function SwatchRow({
 }
 
 const styles = StyleSheet.create({
-  overlay: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    top: 0,
-    bottom: 0,
-    justifyContent: 'flex-end',
-  },
-  backdrop: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    top: 0,
-    bottom: 0,
-    backgroundColor: '#00000066',
-  },
-  sheet: {
-    backgroundColor: '#10141f',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingTop: 14,
-    paddingBottom: 30,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#2a3554',
-  },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    paddingHorizontal: 16,
-    paddingBottom: 10,
   },
   previewBack: {
     width: 36,
@@ -605,18 +572,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  headerButtonText: { color: '#c9d6ea', fontSize: 18 },
-  pinActive: { color: '#ffd166' },
-  doneButton: {
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-    borderRadius: 10,
-    backgroundColor: '#2a3554',
-  },
-  doneText: { color: '#e6ecf7', fontSize: 14, fontWeight: '600' },
-  wheelRow: { alignItems: 'center', paddingVertical: 6 },
-  sliderRow: { alignItems: 'center', paddingVertical: 8 },
-  swatchSection: { paddingHorizontal: 16, paddingTop: 8 },
+  wheelRow: { alignItems: 'center', paddingVertical: 2 },
+  sliderRow: { alignItems: 'center', paddingVertical: 4 },
+  swatchSection: { paddingTop: 4 },
   swatchLabel: { color: '#7f8db0', fontSize: 12, marginBottom: 6 },
   swatchEmpty: { color: '#3d4560', fontSize: 12, paddingVertical: 6 },
   swatchStrip: { flexDirection: 'row', gap: 8, paddingVertical: 2 },

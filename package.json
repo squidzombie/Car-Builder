@@ -8,6 +8,7 @@
     "@expo-google-fonts/bebas-neue": "^0.4.1",
     "@expo-google-fonts/pacifico": "^0.4.1",
     "@expo-google-fonts/permanent-marker": "^0.4.0",
+    "@expo/vector-icons": "^15.0.2",
     "@shopify/react-native-skia": "^2.6.2",
     "expo": "~57.0.18",
     "expo-file-system": "~57.0.6",

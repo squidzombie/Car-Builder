@@ -8,7 +8,7 @@ import type { Color, Layer, Point } from '../model/types'
 import { rgbaToHex } from '../model/color'
 import { BUILTIN_SHAPES } from '../model/shapes'
 import { useEditor } from '../state/useEditor'
-import { findLayer, makePathLayer, makeStampLayer } from '../state/editorStore'
+import { findLayer, makePathLayer, makeShapeLayer, makeStampLayer } from '../state/editorStore'
 import { hitTest, layerBounds, toLocal } from './bounds'
 import { makeShapeContains } from './shapeHit'
 import { applyPinch, beginPinch, pinchGeometry, type PinchStart } from './transformGesture'
@@ -21,8 +21,10 @@ import {
   type SymmetryVariant,
 } from './tools'
 import { layerColor, setLayerColor } from './layerColor'
+import { Feather } from '@expo/vector-icons'
 import { ColorPicker } from './ColorPicker'
 import { LayerPanel } from './LayerPanel'
+import { AddSheet } from './AddSheet'
 import { ShapeBuilder } from './ShapeBuilder'
 import { MaskEditor } from './MaskEditor'
 import { TextEditor } from './TextEditor'
@@ -96,6 +98,8 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
   const toolRef = useRef({ mode, draw, stamp })
   toolRef.current = { mode, draw, stamp }
   const [builderOpen, setBuilderOpen] = useState(false)
+  const builderOrigin = useRef<'stamp' | 'add'>('stamp')
+  const [addOpen, setAddOpen] = useState(false)
   const [maskOpen, setMaskOpen] = useState(false)
   const [textOpen, setTextOpen] = useState(false)
   const [fxOpen, setFxOpen] = useState(false)
@@ -630,7 +634,7 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
             disabled={!canUndo}
             onPress={() => useEditor.getState().undo()}
           >
-            <Text style={[styles.toolText, !canUndo && styles.toolTextDisabled]}>↩</Text>
+            <Feather name="corner-up-left" size={16} color={canUndo ? '#c9d6ea' : '#3d4560'} />
           </Pressable>
           <Pressable
             style={styles.toolButton}
@@ -638,7 +642,7 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
             disabled={!canRedo}
             onPress={() => useEditor.getState().redo()}
           >
-            <Text style={[styles.toolText, !canRedo && styles.toolTextDisabled]}>↪</Text>
+            <Feather name="corner-up-right" size={16} color={canRedo ? '#c9d6ea' : '#3d4560'} />
           </Pressable>
         </View>
       </View>
@@ -701,7 +705,10 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
         shapes={allShapes}
         onOpenColor={openPicker}
         onNewLayer={() => useEditor.getState().select(null)}
-        onOpenBuilder={() => setBuilderOpen(true)}
+        onOpenBuilder={() => {
+          builderOrigin.current = 'stamp'
+          setBuilderOpen(true)
+        }}
       />
 
       {selected && mode === 'select' ? (
@@ -732,7 +739,18 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
         </View>
       ) : null}
 
-      <LayerPanel />
+      <LayerPanel onAddPress={() => setAddOpen(true)} />
+
+      {addOpen ? (
+        <AddSheet
+          onClose={() => setAddOpen(false)}
+          onOpenBuilder={() => {
+            setAddOpen(false)
+            builderOrigin.current = 'add'
+            setBuilderOpen(true)
+          }}
+        />
+      ) : null}
 
       {eyedropping ? (
         <View style={styles.eyedropBanner} pointerEvents="box-none">
@@ -772,8 +790,12 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
           onClose={() => setBuilderOpen(false)}
           onSaved={(shapeId) => {
             setBuilderOpen(false)
-            setModeState('stamp')
-            setStamp((st) => ({ ...st, shapeId }))
+            if (builderOrigin.current === 'add') {
+              useEditor.getState().addLayer(makeShapeLayer(shapeId, { color: '#c9d6ea' }))
+            } else {
+              setModeState('stamp')
+              setStamp((st) => ({ ...st, shapeId }))
+            }
           }}
         />
       ) : null}
