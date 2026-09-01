@@ -43,6 +43,9 @@ import { TextEditor } from './TextEditor'
 import { FinishEditor } from './FinishEditor'
 import { useDocImages } from '../view/useDocImages'
 import { tick } from '../view/haptics'
+import { getAssetUri, registerAsset, setAssetUri } from '../model/assets'
+import { persistAsset } from '../model/storage'
+import { cutoutAvailable, liftSubject } from '../native/subjectCutout'
 import { ToolBar, type DrawSettings, type EditorMode, type StampSettings } from './ToolBar'
 import { color, pressed, type } from './theme'
 
@@ -135,6 +138,37 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
   const [maskOpen, setMaskOpen] = useState(false)
   const [textOpen, setTextOpen] = useState(false)
   const [fxOpen, setFxOpen] = useState(false)
+
+  // subject lift (iOS 17+ builds only; hidden elsewhere)
+  const [cutoutState, setCutoutState] = useState<'idle' | 'working' | 'none'>('idle')
+  const doCutout = async () => {
+    const s = useEditor.getState()
+    const sel = s.selectedId ? findLayer(s.doc, s.side, s.selectedId) : undefined
+    if (!sel || sel.type !== 'image' || cutoutState === 'working') return
+    const srcUri = getAssetUri(sel.image!.assetId)
+    if (!srcUri) return
+    setCutoutState('working')
+    try {
+      const outUri = await liftSubject(srcUri)
+      if (outUri) {
+        const assetId = registerAsset(outUri)
+        persistAsset(outUri, assetId)
+          .then((uri) => setAssetUri(assetId, uri))
+          .catch(() => {})
+        s.updateLayer(sel.id, (l) => {
+          l.image!.assetId = assetId
+          l.image!.cutout = 'subject'
+        })
+        tick()
+        setCutoutState('idle')
+      } else {
+        setCutoutState('none')
+        setTimeout(() => setCutoutState('idle'), 2000)
+      }
+    } catch {
+      setCutoutState('idle')
+    }
+  }
 
   // (the finish-sheet tilt sweep lives inside EditorCanvas so its 60fps
   // state updates re-render only the canvas, not the whole screen)
@@ -912,6 +946,17 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
           {selected.type === 'text' ? (
             <Pressable style={pressed(styles.propsAction)} hitSlop={6} onPress={() => setTextOpen(true)}>
               <Text style={styles.propsActionText}>Edit</Text>
+            </Pressable>
+          ) : null}
+          {selected.type === 'image' && cutoutAvailable() ? (
+            <Pressable style={pressed(styles.propsAction)} hitSlop={6} onPress={doCutout}>
+              <Text style={styles.propsActionText}>
+                {cutoutState === 'working'
+                  ? 'Cutting…'
+                  : cutoutState === 'none'
+                    ? 'No subject'
+                    : 'Cut out'}
+              </Text>
             </Pressable>
           ) : null}
           <Pressable style={pressed(styles.propsAction)} hitSlop={6} onPress={() => setMaskOpen(true)}>

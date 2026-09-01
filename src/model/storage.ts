@@ -56,17 +56,35 @@ export async function listCardDocs(): Promise<CardDocument[]> {
   return docs.sort((a, b) => (a.meta.updatedAt < b.meta.updatedAt ? 1 : -1))
 }
 
+async function readState(): Promise<Record<string, unknown>> {
+  try {
+    return JSON.parse(await FileSystem.readAsStringAsync(STATE_FILE))
+  } catch {
+    return {}
+  }
+}
+
+async function writeState(patch: Record<string, unknown>): Promise<void> {
+  const cur = await readState()
+  await FileSystem.writeAsStringAsync(STATE_FILE, JSON.stringify({ ...cur, ...patch }))
+}
+
 export async function saveLastOpened(id: string): Promise<void> {
-  await FileSystem.writeAsStringAsync(STATE_FILE, JSON.stringify({ lastCardId: id }))
+  await writeState({ lastCardId: id })
 }
 
 export async function loadLastOpened(): Promise<string | null> {
-  try {
-    const raw = JSON.parse(await FileSystem.readAsStringAsync(STATE_FILE))
-    return typeof raw.lastCardId === 'string' ? raw.lastCardId : null
-  } catch {
-    return null
-  }
+  const s = await readState()
+  return typeof s.lastCardId === 'string' ? s.lastCardId : null
+}
+
+/** First-launch welcome (M7 onboarding): shown once, then flagged here. */
+export async function loadOnboarded(): Promise<boolean> {
+  return (await readState()).onboarded === true
+}
+
+export async function saveOnboarded(): Promise<void> {
+  await writeState({ onboarded: true })
 }
 
 /** Copy a picked photo into the persistent assets dir; returns its new URI. */

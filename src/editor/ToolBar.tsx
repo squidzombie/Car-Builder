@@ -35,7 +35,8 @@ export type StampSettings = {
   symmetry: SymmetryMode
 }
 
-export const DRAW_WIDTHS = [6, 14, 28]
+export const DRAW_WIDTH_MIN = 2
+export const DRAW_WIDTH_MAX = 48
 export const STAMP_SIZE_MIN = 16
 export const STAMP_SIZE_MAX = 320
 
@@ -74,22 +75,19 @@ export function ToolBar(p: Props) {
       </View>
 
       {p.mode === 'draw' ? (
+        <>
+        <View style={styles.sizeRow}>
+          <MiniSlider
+            label={`Width · ${Math.round(p.draw.width)}`}
+            value={p.draw.width}
+            min={DRAW_WIDTH_MIN}
+            max={DRAW_WIDTH_MAX}
+            step={1}
+            onChange={(v) => p.onDraw({ width: Math.round(v), eraser: false })}
+          />
+        </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
           <View style={styles.optionRow}>
-            {DRAW_WIDTHS.map((w) => (
-              <Pressable
-                key={w}
-                style={pressed(styles.option, p.draw.width === w && !p.draw.eraser && styles.optionActive)}
-                onPress={() => p.onDraw({ width: w, eraser: false })}
-              >
-                <View
-                  style={[
-                    styles.widthDot,
-                    { width: 6 + w / 2.5, height: 6 + w / 2.5, borderRadius: 20 },
-                  ]}
-                />
-              </Pressable>
-            ))}
             <Pressable style={pressed(styles.option)} onPress={() => p.onOpenColor('draw')}>
               <View style={[styles.colorDot, { backgroundColor: p.draw.color }]} />
             </Pressable>
@@ -110,6 +108,7 @@ export function ToolBar(p: Props) {
             </Pressable>
           </View>
         </ScrollView>
+        </>
       ) : null}
 
       {p.mode === 'draw' && p.draw.eraser && !p.drawTargetSelected ? (
@@ -241,7 +240,6 @@ const styles = StyleSheet.create({
   optionActive: { backgroundColor: color.chipActive, borderWidth: 1, borderColor: color.accent },
   optionText: { color: color.textMid, fontSize: type.sm },
   hint: { color: color.warn, fontSize: type.xs, textAlign: 'center', paddingHorizontal: 16 },
-  widthDot: { backgroundColor: color.textMid },
   colorDot: {
     width: 20,
     height: 20,

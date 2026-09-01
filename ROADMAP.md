@@ -124,16 +124,16 @@ per-screen tweaks.
 
 - Web share links (M6 remainder): Supabase upload + /c/{id} viewer
   (needs the bundled fonts on web too).
-- Subject cutout via dev build (unlocked now that we ship via EAS).
-  Max specifically wants Apple's press-and-hold "lift subject" experience;
-  that IS this tech — VisionKit / VNGenerateForegroundInstanceMask
-  (iOS 17+), already named in CLAUDE.md §4. Plan: Expo native module
-  exposing `liftSubject(uri) -> masked PNG uri`, wired into the photo
-  layer's `cutout: 'subject'` flow + an ImageAnalysisInteraction-style
-  press-and-hold on the photo. Needs a dev-build/TestFlight cycle to
-  test (no Expo Go).
-- M7: onboarding (30s, ends on a tilting sample card), perf pass
-  (Reanimated shared-value tilt if needed), store assets.
+- DONE 2026-09-01: subject cutout shipped as modules/subject-cutout
+  (VNGenerateForegroundInstanceMaskRequest, iOS 17+, full-frame output
+  so the subject stays in place). "Cut out" button on image layers,
+  hidden on Android/Expo Go. UNTESTED on-device until the next
+  TestFlight build — Max verifies on iPhone. Press-and-hold interaction
+  (ImageAnalysisInteraction) still possible later.
+- DONE 2026-09-01: M7 onboarding (one-time "Make it shine" welcome
+  sheet over the tilting demo card, flag in the state file).
+- M7 remainder: perf pass (Reanimated shared-value tilt if needed),
+  store assets, empty states.
 
 ## Working notes
 

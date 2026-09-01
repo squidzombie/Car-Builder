@@ -29,9 +29,11 @@ import { setAssetUri } from './src/model/assets'
 import {
   loadCard,
   loadLastOpened,
+  loadOnboarded,
   restoreAssets,
   saveCard,
   saveLastOpened,
+  saveOnboarded,
 } from './src/model/storage'
 import { ShareViewer } from './src/web/ShareViewer'
 import { shareConfigured } from './src/model/shareConfig'
@@ -117,10 +119,28 @@ function PreviewScreen({ onEdit }: { onEdit: () => void }) {
   const [choosing, setChoosing] = useState(false)
   const [grading, setGrading] = useState(false)
   const [renaming, setRenaming] = useState(false)
+  const [welcome, setWelcome] = useState(false)
   const [draftTitle, setDraftTitle] = useState('')
   const [exportSide, setExportSide] = useState<'front' | 'back' | null>(null)
   const [linking, setLinking] = useState(false)
   const shownSide = useRef<'front' | 'back'>('front')
+
+  // M7 onboarding: a one-time welcome over the already-tilting demo card
+  useEffect(() => {
+    let alive = true
+    loadOnboarded()
+      .then((seen) => {
+        if (alive && !seen) setWelcome(true)
+      })
+      .catch(() => {})
+    return () => {
+      alive = false
+    }
+  }, [])
+  const dismissWelcome = () => {
+    setWelcome(false)
+    saveOnboarded().catch(() => {})
+  }
 
   const title = doc.meta.title ?? 'Untitled card'
   const commitTitle = () => {
@@ -202,6 +222,29 @@ function PreviewScreen({ onEdit }: { onEdit: () => void }) {
         </View>
         <Text style={styles.hint}>Tilt or drag to shine • tap to flip • Share exports this side</Text>
       </View>
+      {welcome ? (
+        <Sheet title="Make it shine" onClose={dismissWelcome} closeLabel="Skip">
+          <View style={styles.welcomeRow}>
+            <Feather name="smartphone" size={18} color={color.accent} />
+            <Text style={styles.welcomeText}>
+              Tilt your phone — the foil shifts like a real card
+            </Text>
+          </View>
+          <View style={styles.welcomeRow}>
+            <Feather name="refresh-cw" size={18} color={color.accent} />
+            <Text style={styles.welcomeText}>Tap the card to flip it over</Text>
+          </View>
+          <View style={styles.welcomeRow}>
+            <Feather name="edit-3" size={18} color={color.accent} />
+            <Text style={styles.welcomeText}>
+              Edit card to add photos, foil, stamps, and your name
+            </Text>
+          </View>
+          <Pressable style={pressed(styles.welcomeButton)} onPress={dismissWelcome}>
+            <Text style={styles.welcomeButtonText}>Start creating</Text>
+          </Pressable>
+        </Sheet>
+      ) : null}
       {renaming ? (
         <Sheet title="Card name" onClose={commitTitle} backdrop>
           <TextInput
@@ -334,6 +377,17 @@ const styles = StyleSheet.create({
   primaryButton: { backgroundColor: color.accent },
   primaryButtonText: { color: color.onAccent, fontWeight: '700' },
   hint: { color: color.textFaint, fontSize: t.sm },
+  welcomeRow: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 4 },
+  welcomeText: { color: color.textMid, fontSize: t.base, flexShrink: 1, lineHeight: 20 },
+  welcomeButton: {
+    marginTop: 6,
+    minHeight: 44,
+    borderRadius: 22,
+    backgroundColor: color.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  welcomeButtonText: { color: color.onAccent, fontSize: t.base, fontWeight: '700' },
   exportHolder: { position: 'absolute', left: -4000, top: 0 },
   gradeChip: {
     position: 'absolute',
