@@ -1,4 +1,45 @@
-# Beta roadmap — planned 2026-08-31, awaiting Max's go
+# Beta roadmap
+
+## UX review findings (post-Build-5 human-factors pass) — Build 6 candidates
+
+Severity-ordered; each verified against the running app.
+
+1. **Text editor vs. keyboard**: the sheet sits at the bottom, so the
+   Android/iOS keyboard covers the content TextInput while typing — you
+   type blind. Needs KeyboardAvoidingView (or the sheet to slide up).
+2. **Template chooser overflows the screen** with 6 templates + the saved
+   shelf (observed pushing into the status bar). Give the sheet's content
+   a max height + internal scroll like the Add sheet.
+3. **Layer-row action cluster**: a selected row packs eye/lock/up/down/
+   copy/TRASH as ~34dp targets with no gaps; delete sits next to
+   duplicate, one fat-finger apart, hard against the screen edge. Undo
+   saves you, but users don't know that. Add spacing, and either move
+   delete behind swipe/confirm or separate it visually.
+4. **Small-layer resize handles**: on layers under ~60dp the four 24dp
+   corner hit zones swallow the move-drag area. Scale hit radius with
+   layer size or show only two handles when small. Also the zoom-reset
+   chip (bottom-right of canvas) can sit exactly on a corner handle.
+5. **Swatches are 30dp** (pins/recents) with tap + hold + drag stacked on
+   them — under the 44pt guideline and expert-only. Bump to ~38dp and add
+   a hold affordance (wiggle/scale) before the unpin fires.
+6. **Two-finger rule is invisible**: with a selection, two fingers
+   transform the layer; without, they zoom. New users WILL rotate a layer
+   while trying to zoom. Consider: canvas zoom always on two fingers +
+   layer rotate via a dedicated rotation handle, or a first-run hint.
+7. **Undo/redo live at the top** — worst one-handed reach zone for the
+   editor's most-used buttons. Consider moving next to the mode bar.
+8. **Eraser silently does nothing** unless a drawing layer is selected.
+   Toast a hint or auto-target the topmost drawing under the finger.
+9. **MiniSlider tracks are 26dp tall** with no hitSlop — fiddly,
+   especially the stepped Sides slider. Add vertical hitSlop/padding.
+10. **Eyedropper has no loupe** — sampling is hidden under the fingertip.
+    Fine for v1; note for the polish pass (iOS picker-style magnifier).
+11. Minor: selected layer row tint is subtle (add a left accent bar);
+    props-bar color chip is 28dp (bump); Gradient tile icon ('sunset')
+    reads weak; export button gives no per-side feedback.
+
+---
+# Original plan (2026-08-31)
 
 Sequenced as TestFlight builds: each build is small enough to ship and
 get feedback on, ordered fixes → foundation → showpieces → breadth.
