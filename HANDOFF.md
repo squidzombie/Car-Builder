@@ -1,4 +1,30 @@
-# Handoff — 2026-09-01: web share viewer IN PROGRESS (mid-debug)
+# Handoff — 2026-09-01: WEB VIEWER WORKING ✓
+
+## Web share viewer: RESOLVED
+
+The /c/{id} viewer renders the full card in the browser — all shaders,
+fonts, 3D mouse tilt, flip — verified via headless Edge (rig:
+`MSYS_NO_PATHCONV=1 node scripts/web-shot.js /c/demo out.png`, Metro
+running). The entire black-canvas saga traced to exactly TWO web stubs
+in RN Skia (everything else was red herrings from impure bisection):
+1. `matchFont` — no system fonts on CanvasKit → CardRenderer falls back
+   to a bundled typeface on web.
+2. `font.measureText` — not-implemented stub that THREW on every
+   center/right-aligned text layer, blanking the whole canvas →
+   `getTextWidth` on web.
+Rule for this codebase: any RN Skia API that throws inside the render
+kills the entire canvas silently; on web check JsiSk*.js for
+throwNotImplementedOnRNWeb before using an API.
+(Also kept: integer canvas sizes; wheel-canvas explicit background.)
+
+Remaining for end-to-end share links:
+1. User creates a Supabase project + public "cards" bucket, pastes URL +
+   anon key into src/model/shareConfig.ts (Link button appears on the
+   preview screen automatically).
+2. Host the web build (candidate: `npx expo export --platform web` then
+   EAS Hosting deploy — logged in already) and set VIEWER_URL.
+
+---
 
 ## RESUME HERE: /c/{id} web viewer black-canvas debugging
 

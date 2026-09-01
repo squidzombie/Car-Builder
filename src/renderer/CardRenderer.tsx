@@ -374,7 +374,13 @@ function LayerContent({
       }
       let x = 0
       if (t.align !== 'l') {
-        const width = font.measureText(t.content).width
+        // measureText is a not-implemented stub on RN Skia web (throwing
+        // inside the render blanks the whole canvas); getTextWidth works
+        // everywhere via glyph widths
+        const width =
+          Platform.OS === 'web'
+            ? font.getTextWidth(t.content)
+            : font.measureText(t.content).width
         x = t.align === 'c' ? -width / 2 : -width
       }
       return <SkiaText x={x} y={0} text={t.content} font={font} color={t.color} />

@@ -1,7 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { StyleSheet, Text, View, useWindowDimensions } from 'react-native'
-import { Canvas, Rect } from '@shopify/react-native-skia'
-import { CardRenderer } from '../renderer/CardRenderer'
 import type { CardDocument, ViewState } from '../model/types'
 import { lightFromTilt } from '../model/types'
 import { deserializeCard } from '../model/serialize'
@@ -84,49 +82,6 @@ export function ShareViewer({ cardId }: { cardId: string }) {
   const assets = useDocImages(doc ?? demoCard())
   const cardWidth = Math.min(width - 48, height * 0.62, 420)
 
-  if (cardId === 'plain') {
-    // render sanity probe: one bare rect, no shaders/fonts/images
-    return (
-      <View style={styles.root}>
-        <Canvas style={{ width: 300, height: 300 }}>
-          <Rect x={20} y={20} width={260} height={260} color="#e63946" />
-        </Canvas>
-      </View>
-    )
-  }
-
-  if (cardId === 'tilt') {
-    // probe 3: TiltCard with a STATIC view — isolates the 60fps loop
-    return (
-      <View style={styles.root}>
-        <TiltCard
-          doc={demoCard()}
-          view={{ tiltX: 0.3, tiltY: -0.2, lightX: 0.6, lightY: 0.3 }}
-          width={320}
-        />
-      </View>
-    )
-  }
-
-  if (cardId === 'flat') {
-    // probe 2: full CardRenderer, no TiltCard wrapper
-    const d = demoCard()
-    if (typeof window !== 'undefined' && window.location.search.includes('notext')) {
-      d.front.layers = d.front.layers.filter((l) => l.type !== 'text')
-    }
-    return (
-      <View style={styles.root}>
-        <Canvas style={{ width: 320, height: 448 }}>
-          <CardRenderer
-            doc={d}
-            side="front"
-            viewState={{ tiltX: 0.3, tiltY: -0.2, lightX: 0.6, lightY: 0.3 }}
-            scale={320 / d.size.w}
-          />
-        </Canvas>
-      </View>
-    )
-  }
 
   return (
     <View style={styles.root}>

@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react'
-import { Animated, Platform, Pressable, StyleSheet, View } from 'react-native'
+import { Animated, Pressable, StyleSheet, View } from 'react-native'
 import { Canvas, type SkImage } from '@shopify/react-native-skia'
 import type { CardDocument, ViewState } from '../model/types'
 import { CardRenderer } from '../renderer/CardRenderer'
@@ -68,23 +68,6 @@ export function TiltCard({
       </Canvas>
     </View>
   )
-
-  // Web: 3D CSS transforms on an ancestor stop the CanvasKit surface from
-  // compositing in Chromium, so the card sits flat — the tilt lives in
-  // the shader shine, which is the part that sells it. Flip still works
-  // (instant side swap).
-  if (Platform.OS === 'web') {
-    return (
-      <Pressable onPress={onFlip}>
-        <View style={[styles.card, { width, height }]}>{inner}</View>
-      </Pressable>
-    )
-  }
-
-  // Web: 3D CSS transforms on an ancestor break CanvasKit's WebGL
-  // compositing in Chromium (verified headed + headless), so the card
-  // sits flat and the tilt lives entirely in the shader shine — which is
-  // the part that sells it anyway. Flip is an instant side swap.
 
   return (
     <Pressable onPress={onFlip}>
