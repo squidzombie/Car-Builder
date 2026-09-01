@@ -3,6 +3,12 @@
 ## UX review findings (post-Build-5 human-factors pass) — Build 6 candidates
 
 Severity-ordered; each verified against the running app.
+STATUS 2026-09-01: #1–5, #9, #10, #11 done (Build 6 + design lockdown).
+#6 resolved with a dedicated rotate handle on the selection box (45°
+snap, two-finger twist kept). #7 closed per Max: undo/redo stay in the
+top bar (screen space). #8 has the toolbar hint. Also added: Rectangle
+as a first-class shape (Max twice couldn't create one — Shape now
+carries defaultAspect; library entry sits next to Square).
 
 1. **Text editor vs. keyboard**: the sheet sits at the bottom, so the
    Android/iOS keyboard covers the content TextInput while typing — you
