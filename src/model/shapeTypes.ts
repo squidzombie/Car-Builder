@@ -10,4 +10,10 @@ export type Shape = {
    * so new layers, stamps, and picker glyphs come out wide.
    */
   defaultAspect?: number
+  /**
+   * Fill rule for self-intersecting / multi-stroke paths (default
+   * nonzero). Hand-drawn shapes use evenodd so inner strokes punch
+   * holes instead of filling over.
+   */
+  fillRule?: 'nonzero' | 'evenodd'
 }

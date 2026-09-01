@@ -1,4 +1,4 @@
-import { Skia } from '@shopify/react-native-skia'
+import { FillType, Skia } from '@shopify/react-native-skia'
 import type { SkPath } from '@shopify/react-native-skia'
 import type { CardDocument } from '../model/types'
 import { getShape } from '../model/shapes'
@@ -15,10 +15,12 @@ export function makeShapeContains(doc: CardDocument) {
   return (shapeId: string, u: number, v: number): boolean => {
     const shape = getShape(shapeId, doc.shapes)
     if (!shape) return true
-    let path = cache.get(shape.path)
+    const key = `${shape.fillRule ?? 'nonzero'}|${shape.path}`
+    let path = cache.get(key)
     if (path === undefined) {
       path = Skia.Path.MakeFromSVGString(shape.path)
-      cache.set(shape.path, path)
+      if (path && shape.fillRule === 'evenodd') path.setFillType(FillType.EvenOdd)
+      cache.set(key, path)
     }
     return path ? path.contains(u, v) : true
   }

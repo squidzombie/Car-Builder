@@ -53,6 +53,72 @@ export function buildPolygonPath(opts: {
   return parts.join(' ') + ' Z'
 }
 
+/**
+ * Turn free-drawn strokes into a custom Shape path (the "Draw" tab of the
+ * shape builder). Each stroke is smoothed (Catmull-Rom → cubics, matching
+ * the renderer's free-draw look) and auto-closed; the union bounding box is
+ * normalized to fill the 0..1 box per axis, with the true drawn proportions
+ * returned as `aspect` for Shape.defaultAspect. Render with fillRule
+ * 'evenodd' so inner strokes cut holes. Null when there isn't enough ink.
+ */
+export function buildDrawnShapePath(
+  strokes: { x: number; y: number }[][],
+): { path: string; aspect: number } | null {
+  const inked = strokes.filter((s) => s.length >= 2)
+  if (inked.length === 0) return null
+
+  let minX = Infinity
+  let minY = Infinity
+  let maxX = -Infinity
+  let maxY = -Infinity
+  for (const s of inked) {
+    for (const p of s) {
+      if (p.x < minX) minX = p.x
+      if (p.x > maxX) maxX = p.x
+      if (p.y < minY) minY = p.y
+      if (p.y > maxY) maxY = p.y
+    }
+  }
+  const w = maxX - minX
+  const h = maxY - minY
+  const span = Math.max(w, h)
+  if (span < 1e-6) return null
+  // a nearly-1D drawing still gets a sliver of thickness
+  const nw = Math.max(w, span * 0.02)
+  const nh = Math.max(h, span * 0.02)
+
+  const parts: string[] = []
+  for (const s of inked) {
+    // thin dense move-event points; keep endpoints
+    const pts: { x: number; y: number }[] = [s[0]]
+    for (let i = 1; i < s.length - 1; i++) {
+      const last = pts[pts.length - 1]
+      if (Math.hypot(s[i].x - last.x, s[i].y - last.y) >= span * 0.01) pts.push(s[i])
+    }
+    if (s.length > 1) pts.push(s[s.length - 1])
+    const n = pts.map((p) => ({ x: (p.x - minX) / nw, y: (p.y - minY) / nh }))
+
+    if (n.length < 3) {
+      parts.push(`M${fmt(n[0].x)} ${fmt(n[0].y)} L${fmt(n[n.length - 1].x)} ${fmt(n[n.length - 1].y)} Z`)
+      continue
+    }
+    let d = `M${fmt(n[0].x)} ${fmt(n[0].y)}`
+    for (let i = 0; i < n.length - 1; i++) {
+      const p0 = n[Math.max(0, i - 1)]
+      const p1 = n[i]
+      const p2 = n[i + 1]
+      const p3 = n[Math.min(n.length - 1, i + 2)]
+      const c1 = { x: p1.x + (p2.x - p0.x) / 6, y: p1.y + (p2.y - p0.y) / 6 }
+      const c2 = { x: p2.x - (p3.x - p1.x) / 6, y: p2.y - (p3.y - p1.y) / 6 }
+      d += ` C${fmt(c1.x)} ${fmt(c1.y)} ${fmt(c2.x)} ${fmt(c2.y)} ${fmt(p2.x)} ${fmt(p2.y)}`
+    }
+    parts.push(d + ' Z')
+  }
+
+  const aspect = Math.max(0.1, Math.min(10, nw / nh))
+  return { path: parts.join(' '), aspect }
+}
+
 // Built-in shape library (CLAUDE.md §4). All paths are normalized to the 0..1 box.
 export const BUILTIN_SHAPES: Shape[] = [
   {

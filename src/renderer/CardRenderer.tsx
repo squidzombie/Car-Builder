@@ -1,6 +1,7 @@
 import React from 'react'
 import { Platform } from 'react-native'
 import {
+  FillType,
   Group,
   Paint,
   Path,
@@ -228,7 +229,7 @@ function MaskPass({
   if (mask.type === 'shape' && mask.assetId) {
     const shape = getShape(mask.assetId, shapes)
     if (shape) {
-      const path = shapePath(shape.path, p.x ?? 0, p.y ?? 0, p.w ?? w, p.h ?? h)
+      const path = shapePath(shape.path, p.x ?? 0, p.y ?? 0, p.w ?? w, p.h ?? h, shape.fillRule)
       if (path) return <Path path={path} color="#ffffff" blendMode="dstIn" />
     }
     return null
@@ -250,9 +251,17 @@ function MaskPass({
 }
 
 /** Parse a normalized (0..1) SVG shape path and map it into an x/y/w/h box. */
-function shapePath(svg: string, x: number, y: number, w: number, h: number) {
+function shapePath(
+  svg: string,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  fillRule?: 'nonzero' | 'evenodd',
+) {
   const path = Skia.Path.MakeFromSVGString(svg)
   if (!path) return null
+  if (fillRule === 'evenodd') path.setFillType(FillType.EvenOdd)
   const m = Skia.Matrix()
   m.translate(x, y)
   m.scale(w, h)
@@ -293,7 +302,7 @@ function LayerContent({
       const s = layer.shape!
       const shape = getShape(s.shapeId, doc.shapes)
       if (!shape) return null
-      const path = shapePath(shape.path, 0, 0, s.w, s.h)
+      const path = shapePath(shape.path, 0, 0, s.w, s.h, shape.fillRule)
       if (!path) return null
       return (
         <>
@@ -336,6 +345,7 @@ function LayerContent({
       if (!shape) return null
       const base = Skia.Path.MakeFromSVGString(shape.path)
       if (!base) return null
+      if (shape.fillRule === 'evenodd') base.setFillType(FillType.EvenOdd)
       return (
         <>
           {s.instances.map((inst, i) => {

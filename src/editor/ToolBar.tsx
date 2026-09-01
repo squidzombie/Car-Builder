@@ -1,6 +1,7 @@
 import React from 'react'
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
-import { Canvas, Path, Skia } from '@shopify/react-native-skia'
+import { Canvas, FillType, Path, Skia } from '@shopify/react-native-skia'
+import { MiniSlider } from './MiniSlider'
 import type { Color } from '../model/types'
 import type { Shape } from '../model/shapeTypes'
 import {
@@ -35,7 +36,8 @@ export type StampSettings = {
 }
 
 export const DRAW_WIDTHS = [6, 14, 28]
-export const STAMP_SIZES = [44, 84, 150]
+export const STAMP_SIZE_MIN = 16
+export const STAMP_SIZE_MAX = 320
 
 type Props = {
   mode: EditorMode
@@ -132,17 +134,18 @@ export function ToolBar(p: Props) {
               </Pressable>
             </View>
           </ScrollView>
+          <View style={styles.sizeRow}>
+            <MiniSlider
+              label={`Size · ${Math.round(p.stamp.size)}`}
+              value={p.stamp.size}
+              min={STAMP_SIZE_MIN}
+              max={STAMP_SIZE_MAX}
+              step={2}
+              onChange={(v) => p.onStamp({ size: v })}
+            />
+          </View>
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             <View style={styles.optionRow}>
-              {STAMP_SIZES.map((s, i) => (
-                <Pressable
-                  key={s}
-                  style={pressed(styles.option, p.stamp.size === s && styles.optionActive)}
-                  onPress={() => p.onStamp({ size: s })}
-                >
-                  <Text style={styles.optionText}>{['S', 'M', 'L'][i]}</Text>
-                </Pressable>
-              ))}
               <Pressable style={pressed(styles.option)} onPress={() => p.onOpenColor('stamp')}>
                 <View style={[styles.colorDot, { backgroundColor: p.stamp.color }]} />
               </Pressable>
@@ -185,12 +188,13 @@ export function ShapeGlyph({ shape, size = GLYPH }: { shape: Shape; size?: numbe
   const path = React.useMemo(() => {
     const sk = Skia.Path.MakeFromSVGString(shape.path)
     if (!sk) return null
+    if (shape.fillRule === 'evenodd') sk.setFillType(FillType.EvenOdd)
     const m = Skia.Matrix()
     m.translate((size - gw) / 2, (size - gh) / 2)
     m.scale(gw, gh)
     sk.transform(m)
     return sk
-  }, [shape.path, size, gw, gh])
+  }, [shape.path, shape.fillRule, size, gw, gh])
   if (!path) return null
   return (
     <Canvas style={{ width: size, height: size }}>
@@ -224,6 +228,7 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingHorizontal: 12,
   },
+  sizeRow: { paddingHorizontal: 12 },
   option: {
     minWidth: 40,
     height: 34,
