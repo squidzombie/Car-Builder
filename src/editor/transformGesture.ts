@@ -100,6 +100,96 @@ export function applyPinch(start: PinchStart, a: TouchPoint, b: TouchPoint): Tra
   return { x: anchorX - rx, y: anchorY - ry, rotation, scaleX, scaleY }
 }
 
+// ---- corner-handle resize (Build 5): non-uniform scaling so a square can
+// finally become a rectangle. Drag a corner; the opposite corner stays
+// pinned; each axis scales independently in the layer's local frame, so it
+// is exact under rotation.
+
+export type ResizeStart = {
+  transform: Transform
+  /** the pinned opposite corner, doc space */
+  anchor: TouchPoint
+  /** the same, in layer-local space */
+  anchorLocal: TouchPoint
+  /** the dragged corner in layer-local space at gesture start */
+  handleLocal: TouchPoint
+}
+
+const invert = (t: Transform, p: TouchPoint): TouchPoint | null => {
+  if (t.scaleX === 0 || t.scaleY === 0) return null
+  const rad = (-t.rotation * Math.PI) / 180
+  const dx = p.x - t.x
+  const dy = p.y - t.y
+  const rx = dx * Math.cos(rad) - dy * Math.sin(rad)
+  const ry = dx * Math.sin(rad) + dy * Math.cos(rad)
+  return { x: rx / t.scaleX, y: ry / t.scaleY }
+}
+
+/**
+ * Begin a resize from one AABB corner (0 tl, 1 tr, 2 bl, 3 br); the
+ * diagonally opposite corner becomes the anchor. Null when degenerate.
+ */
+export function beginResize(
+  layer: Layer,
+  doc: CardDocument,
+  corner: 0 | 1 | 2 | 3,
+): ResizeStart | null {
+  const b = layerBounds(layer, doc)
+  if (b.w < 1 || b.h < 1) return null
+  const corners: TouchPoint[] = [
+    { x: b.x, y: b.y },
+    { x: b.x + b.w, y: b.y },
+    { x: b.x, y: b.y + b.h },
+    { x: b.x + b.w, y: b.y + b.h },
+  ]
+  const handle = corners[corner]
+  const anchor = corners[3 - corner]
+  const t = layer.transform
+  const anchorLocal = invert(t, anchor)
+  const handleLocal = invert(t, handle)
+  if (!anchorLocal || !handleLocal) return null
+  if (
+    Math.abs(handleLocal.x - anchorLocal.x) < 1e-3 ||
+    Math.abs(handleLocal.y - anchorLocal.y) < 1e-3
+  ) {
+    return null
+  }
+  return { transform: { ...t }, anchor, anchorLocal, handleLocal }
+}
+
+/** New transform for the current finger position (doc space). Pure. */
+export function applyResize(start: ResizeStart, p: TouchPoint): Transform {
+  const t0 = start.transform
+  const pLocal = invert(t0, p)
+  if (!pLocal) return t0
+  const clampF = (f: number, s: number) => {
+    const mag = Math.abs(s)
+    return Math.max(MIN_SCALE / mag, Math.min(MAX_SCALE / mag, Math.max(0.01, f)))
+  }
+  const fx = clampF(
+    Math.abs(pLocal.x - start.anchorLocal.x) / Math.abs(start.handleLocal.x - start.anchorLocal.x),
+    t0.scaleX,
+  )
+  const fy = clampF(
+    Math.abs(pLocal.y - start.anchorLocal.y) / Math.abs(start.handleLocal.y - start.anchorLocal.y),
+    t0.scaleY,
+  )
+  const scaleX = t0.scaleX * fx
+  const scaleY = t0.scaleY * fy
+  const rad = (t0.rotation * Math.PI) / 180
+  const sx = start.anchorLocal.x * scaleX
+  const sy = start.anchorLocal.y * scaleY
+  const rx = sx * Math.cos(rad) - sy * Math.sin(rad)
+  const ry = sx * Math.sin(rad) + sy * Math.cos(rad)
+  return {
+    x: start.anchor.x - rx,
+    y: start.anchor.y - ry,
+    rotation: t0.rotation,
+    scaleX,
+    scaleY,
+  }
+}
+
 /** Where a layer-local point lands in document space. Exposed for tests. */
 export function localToDoc(t: Transform, p: TouchPoint): TouchPoint {
   const rad = (t.rotation * Math.PI) / 180

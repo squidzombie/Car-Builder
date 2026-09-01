@@ -3,8 +3,15 @@ import { TEMPLATES } from '../index'
 import { serializeCard, deserializeCard } from '../../model/serialize'
 
 describe('templates (§8)', () => {
-  test('all four v1 templates exist', () => {
-    expect(TEMPLATES.map((t) => t.id)).toEqual(['blank', 'portrait', 'full-body', 'action'])
+  test('the template registry is complete', () => {
+    expect(TEMPLATES.map((t) => t.id)).toEqual([
+      'blank',
+      'portrait',
+      'full-body',
+      'action',
+      'retro',
+      'galaxy',
+    ])
   })
 
   for (const t of TEMPLATES) {

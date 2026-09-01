@@ -11,7 +11,15 @@ import { useEditor } from '../state/useEditor'
 import { findLayer, makePathLayer, makeShapeLayer, makeStampLayer } from '../state/editorStore'
 import { hitTest, layerBounds, toLocal } from './bounds'
 import { makeShapeContains } from './shapeHit'
-import { applyPinch, beginPinch, pinchGeometry, type PinchStart } from './transformGesture'
+import {
+  applyPinch,
+  applyResize,
+  beginPinch,
+  beginResize,
+  pinchGeometry,
+  type PinchStart,
+  type ResizeStart,
+} from './transformGesture'
 import {
   jitterInstance,
   mirrorRotation,
@@ -194,6 +202,7 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
   // All gesture state lives in refs — responder callbacks must not close
   // over stale render values. One responder session = one undo step.
   const drag = useRef<{ id: string; startX: number; startY: number } | null>(null)
+  const resizeSession = useRef<{ id: string; start: ResizeStart } | null>(null)
   const pinchStart = useRef<PinchStart | null>(null)
   const pinchLayerId = useRef<string | null>(null)
   const gestureStarted = useRef(false)
@@ -449,6 +458,29 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
         const sel = s.selectedId ? findLayer(s.doc, s.side, s.selectedId) : undefined
         if (sel && !sel.locked) {
           const b = layerBounds(sel, s.doc)
+          // corner handle → non-uniform resize (Build 5: rectangles!)
+          const o = origin(viewRef.current)
+          const vx = e.nativeEvent.locationX
+          const vy = e.nativeEvent.locationY
+          const corners: [number, number][] = [
+            [b.x, b.y],
+            [b.x + b.w, b.y],
+            [b.x, b.y + b.h],
+            [b.x + b.w, b.y + b.h],
+          ]
+          for (let i = 0; i < 4; i++) {
+            const hx = corners[i][0] * o.t + o.x
+            const hy = corners[i][1] * o.t + o.y
+            if (Math.hypot(vx - hx, vy - hy) < 24) {
+              const start = beginResize(sel, s.doc, i as 0 | 1 | 2 | 3)
+              if (start) {
+                resizeSession.current = { id: sel.id, start }
+                s.beginGesture()
+                gestureStarted.current = true
+                return
+              }
+            }
+          }
           if (p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h) {
             drag.current = { id: sel.id, startX: sel.transform.x, startY: sel.transform.y }
             s.beginGesture()
@@ -483,6 +515,7 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
               pinchStart.current = beginPinch(sel, s.doc, a, b)
               pinchLayerId.current = sel.id
               drag.current = null
+              resizeSession.current = null
               return
             }
             const next = applyPinch(pinchStart.current, a, b)
@@ -525,6 +558,17 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
         // a finger lifted mid-pinch: freeze until the session ends
         if (pinchStart.current || canvasPinch.current) return
 
+        if (resizeSession.current) {
+          const rs = resizeSession.current
+          const next = applyResize(
+            rs.start,
+            docPoint(e.nativeEvent.locationX, e.nativeEvent.locationY),
+          )
+          sessionTransformed.current = true
+          s.updateLayer(rs.id, (l) => void (l.transform = next), { transient: true })
+          return
+        }
+
         if (drawSession.current) {
           moveDraw(docPoint(e.nativeEvent.locationX, e.nativeEvent.locationY))
           return
@@ -565,6 +609,7 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
       onPanResponderRelease: (e, g) => {
         const pinched = pinchStart.current !== null || canvasPinch.current !== null
         drag.current = null
+        resizeSession.current = null
         pinchStart.current = null
         pinchLayerId.current = null
         canvasPinch.current = null
@@ -594,6 +639,7 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
       },
       onPanResponderTerminate: () => {
         drag.current = null
+        resizeSession.current = null
         pinchStart.current = null
         pinchLayerId.current = null
         canvasPinch.current = null
@@ -669,18 +715,39 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
               sweep={fxOpen}
             />
             {selectionBox && !eyedropping && mode === 'select' ? (
-              <View
-                pointerEvents="none"
-                style={[
-                  styles.selection,
-                  {
-                    left: selectionBox.x * total + originX - 2,
-                    top: selectionBox.y * total + originY - 2,
-                    width: selectionBox.w * total + 4,
-                    height: selectionBox.h * total + 4,
-                  },
-                ]}
-              />
+              <>
+                <View
+                  pointerEvents="none"
+                  style={[
+                    styles.selection,
+                    {
+                      left: selectionBox.x * total + originX - 2,
+                      top: selectionBox.y * total + originY - 2,
+                      width: selectionBox.w * total + 4,
+                      height: selectionBox.h * total + 4,
+                    },
+                  ]}
+                />
+                {!selected?.locked
+                  ? (
+                      [
+                        [selectionBox.x, selectionBox.y],
+                        [selectionBox.x + selectionBox.w, selectionBox.y],
+                        [selectionBox.x, selectionBox.y + selectionBox.h],
+                        [selectionBox.x + selectionBox.w, selectionBox.y + selectionBox.h],
+                      ] as [number, number][]
+                    ).map(([cx, cy], i) => (
+                      <View
+                        key={i}
+                        pointerEvents="none"
+                        style={[
+                          styles.handle,
+                          { left: cx * total + originX - 7, top: cy * total + originY - 7 },
+                        ]}
+                      />
+                    ))
+                  : null}
+              </>
             ) : null}
             {view.scale > 1 ? (
               <Pressable
@@ -892,6 +959,15 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#4da3ff',
     borderRadius: 3,
+  },
+  handle: {
+    position: 'absolute',
+    width: 14,
+    height: 14,
+    borderRadius: 4,
+    backgroundColor: '#ffffff',
+    borderWidth: 2,
+    borderColor: '#4da3ff',
   },
   zoomChip: {
     position: 'absolute',

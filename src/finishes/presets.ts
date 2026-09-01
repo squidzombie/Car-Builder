@@ -19,10 +19,13 @@ export const FINISH_PRESETS: FinishPreset[] = [
   { family: 'spectrum', preset: 'wave-refractor', label: 'Wave Refractor', bold: false, scale: 1, params: { p0: 22, p1: 1.05, p2: 0.8, p3: 2.2 } },
 
   // Geometric — p0 edgeBrightness, p1 hueSpread, p2 cellSpecular, p3 density
+  // (mode 0 voronoi, 1 circle lattice, 2 bismuth hoppers)
   { family: 'geometric', preset: 'cracked-ice', label: 'Cracked Ice', bold: true, scale: 1, params: { p0: 0.9, p1: 0.5, p2: 0.5, p3: 7 } },
   { family: 'geometric', preset: 'mosaic', label: 'Mosaic', bold: false, scale: 1, params: { p0: 0.25, p1: 0.9, p2: 0.4, p3: 12 } },
   { family: 'geometric', preset: 'prizm-facets', label: 'Prizm Facets', bold: false, scale: 1, params: { p0: 0.15, p1: 1.0, p2: 0.9, p3: 9 } },
   { family: 'geometric', preset: 'disco', label: 'Disco', bold: false, scale: 1, params: { p0: 0.35, p1: 1.4, p2: 1.2, p3: 16 } },
+  { family: 'geometric', preset: 'circles', label: 'Circles', bold: false, scale: 1, params: { p0: 0.85, p1: 0.7, p2: 0.6, p3: 6, mode: 1 } },
+  { family: 'geometric', preset: 'bismuth', label: 'Bismuth', bold: false, scale: 1, params: { p0: 0.9, p1: 1.2, p2: 0.7, p3: 6, mode: 2 } },
 
   // Fluid — p0 warp, p1 bandFreq, p2 contrast, p3 baseFreq
   { family: 'fluid', preset: 'lava', label: 'Lava', bold: true, scale: 1, params: { p0: 1.6, p1: 1.2, p2: 1.6, p3: 3 } },

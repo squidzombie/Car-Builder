@@ -34,6 +34,7 @@ export function buildFinishUniforms(
     uP1: finish.params.p1 ?? 0,
     uP2: finish.params.p2 ?? 0,
     uP3: finish.params.p3 ?? 0,
+    uMode: finish.params.mode ?? 0,
   }
 }
 

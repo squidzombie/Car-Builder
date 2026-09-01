@@ -29,6 +29,7 @@ function flat(u: Record<string, number | number[]>): number[] {
     u.uP1 as number,
     u.uP2 as number,
     u.uP3 as number,
+    u.uMode as number,
   ]
 }
 

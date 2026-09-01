@@ -20,6 +20,7 @@ uniform float  uP0;
 uniform float  uP1;
 uniform float  uP2;
 uniform float  uP3;
+uniform float  uMode;
 `
 
 export const HELPERS = `
@@ -109,4 +110,6 @@ export type FinishUniforms = {
   uP1: number
   uP2: number
   uP3: number
+  /** family-specific pattern variant (geometric: 0 voronoi, 1 circles, 2 bismuth) */
+  uMode: number
 }

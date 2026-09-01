@@ -4,7 +4,9 @@ import {
   MAX_SCALE,
   MIN_SCALE,
   applyPinch,
+  applyResize,
   beginPinch,
+  beginResize,
   localToDoc,
 } from '../transformGesture'
 
@@ -114,6 +116,40 @@ test('twist snaps to cardinal angles within the snap window', () => {
   })
   const next = applyPinch(start, rot({ x: 100, y: 150 }), rot({ x: 200, y: 150 }))
   expect(next.rotation).toBe(90)
+})
+
+test('corner resize makes a rectangle from a square, anchor pinned', () => {
+  // square 100..200 x 100..200; drag bottom-right corner to (400, 250):
+  // width x3, height x1.5 — a rectangle at last
+  const layer = shapeLayer()
+  const start = beginResize(layer, doc, 3)!
+  expect(start.anchor).toEqual({ x: 100, y: 100 })
+  const next = applyResize(start, { x: 400, y: 250 })
+  expect(next.scaleX).toBeCloseTo(3)
+  expect(next.scaleY).toBeCloseTo(1.5)
+  expect(next.rotation).toBe(0)
+  // the anchored top-left corner must not move
+  const anchored = localToDoc(next, start.anchorLocal)
+  expect(anchored.x).toBeCloseTo(100)
+  expect(anchored.y).toBeCloseTo(100)
+})
+
+test('corner resize stays exact on a rotated layer', () => {
+  const layer = shapeLayer({ rotation: 30 })
+  const start = beginResize(layer, doc, 0)! // drag top-left, pin bottom-right
+  const next = applyResize(start, { x: 60, y: 20 })
+  const anchored = localToDoc(next, start.anchorLocal)
+  expect(anchored.x).toBeCloseTo(start.anchor.x)
+  expect(anchored.y).toBeCloseTo(start.anchor.y)
+  expect(next.rotation).toBeCloseTo(30)
+})
+
+test('resize clamps scale and rejects degenerate layers', () => {
+  const layer = shapeLayer()
+  const start = beginResize(layer, doc, 3)!
+  const tiny = applyResize(start, { x: 100.5, y: 100.5 })
+  expect(tiny.scaleX).toBeCloseTo(MIN_SCALE)
+  expect(beginResize(shapeLayer({ scaleX: 0 }), doc, 0)).toBeNull()
 })
 
 test('degenerate starts return null', () => {
