@@ -1,4 +1,31 @@
-# Handoff — 2026-09-01 (later): DESIGN LOCKDOWN, 3 chunks landed
+# Handoff — 2026-09-01 (latest): TestFlight run 4 queued
+
+EAS iOS build a7b14ed4 (production) queued with everything below; Max
+submits via `npx eas-cli submit -p ios --latest`. This build carries
+the first native module — watch its compile result.
+
+Since the design lockdown, this sitting also landed (each verified on
+the emulator, 103/103 tests):
+- Rectangle as a first-class shape (Shape.defaultAspect) + rotate
+  handle on the selection box (beginRotate/applyRotate, 45° snap).
+- Stamp Size slider (16–320) and Draw Width slider (2–48) replacing
+  the S/M/L / three-dots presets.
+- Shape builder Draw tab: freehand strokes → custom shape. Filled
+  (auto-closed evenodd silhouette, model/shapes.buildDrawnShapePath)
+  or Ink (stroke outlines at chosen width, editor/drawnShape.ts via
+  SkPath.stroke + PathOp.Union). Shape.fillRule threaded through
+  renderer/glyphs/hit-testing.
+- M7 onboarding: one-time "Make it shine" welcome sheet (flag in the
+  state file via storage.loadOnboarded/saveOnboarded).
+- Subject cutout: modules/subject-cutout (Swift, VNGenerateForeground-
+  InstanceMaskRequest, iOS 17+, full-frame transparent-background
+  output) + src/native/subjectCutout.ts guard + "Cut out" props-bar
+  button on image layers. Hidden on Android/Expo Go; UNVERIFIED on
+  device until Max tries the TestFlight build — first thing to test.
+
+---
+
+# Earlier — 2026-09-01: DESIGN LOCKDOWN, 3 chunks landed
 
 Direction from Max: sharing is parked; lock down the in-app experience
 and design first. Nothing moved out of the app — the web viewer is an
