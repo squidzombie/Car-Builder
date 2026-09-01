@@ -10,9 +10,32 @@ const GYRO_RANGE = 0.6 // radians of device rotation mapped to full tilt
 const DRAG_RANGE = 120 // px of finger travel mapped to full tilt
 const DRAG_SLOP = 8 // px of movement before a touch counts as a drag, not a tap
 
+// The neutral pose is not fixed: it drifts toward however the phone is
+// actually being held, so launching with the phone tilted (or settling
+// into a new position) self-corrects instead of leaving the card skewed
+// (first beta feedback). Slow enough that quick tilts still shine.
+// Two speeds: ambient drift is slow (tau ~8s) so deliberately holding a
+// tilt to admire the shine barely fades, but an offset pinned PAST full
+// tilt (the launched-sideways case) is absorbed fast until back in range.
+const BASELINE_DRIFT = 0.004 // per ~33ms reading
+const BASELINE_DRIFT_PINNED = 0.05
+
 function applyDeadZone(v: number): number {
   if (Math.abs(v) < DEAD_ZONE) return 0
   return Math.sign(v) * ((Math.abs(v) - DEAD_ZONE) / (1 - DEAD_ZONE))
+}
+
+/** Pure baseline update for one gyro reading (exported for tests). */
+export function nextBaseline(
+  baseline: { beta: number; gamma: number },
+  rot: { beta: number; gamma: number },
+  offsetMagnitude: number,
+): { beta: number; gamma: number } {
+  const f = offsetMagnitude > 1 ? BASELINE_DRIFT_PINNED : BASELINE_DRIFT
+  return {
+    beta: baseline.beta + (rot.beta - baseline.beta) * f,
+    gamma: baseline.gamma + (rot.gamma - baseline.gamma) * f,
+  }
 }
 
 const clamp = (v: number) => Math.max(-1, Math.min(1, v))
@@ -60,10 +83,16 @@ export function useTilt() {
       const rot = m.rotation
       if (!rot) return
       // First reading becomes the neutral pose so the card rests flat however
-      // the user is holding the phone.
+      // the user is holding the phone; afterwards the baseline slowly drifts
+      // toward the current pose so it can never get stuck skewed.
       if (!baseline.current) baseline.current = { beta: rot.beta, gamma: rot.gamma }
       const dx = (rot.gamma - baseline.current.gamma) / GYRO_RANGE
       const dy = (rot.beta - baseline.current.beta) / GYRO_RANGE
+      baseline.current = nextBaseline(
+        baseline.current,
+        { beta: rot.beta, gamma: rot.gamma },
+        Math.max(Math.abs(dx), Math.abs(dy)),
+      )
       gyroTarget.current = { x: clamp(applyDeadZone(dx)), y: clamp(applyDeadZone(dy)) }
       if (!dragging.current) target.current = gyroTarget.current
     })
