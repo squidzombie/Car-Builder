@@ -11,7 +11,7 @@
 export const SUPABASE_URL = ''
 export const SUPABASE_ANON_KEY = ''
 /** where the web viewer lives; share links are `${VIEWER_URL}/c/{id}` */
-export const VIEWER_URL = ''
+export const VIEWER_URL = 'https://cardbuilder.expo.app'
 
 export const shareConfigured = (): boolean =>
   SUPABASE_URL.length > 0 && SUPABASE_ANON_KEY.length > 0
