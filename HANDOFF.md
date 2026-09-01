@@ -1,4 +1,46 @@
-# Handoff — 2026-09-01: WEB VIEWER WORKING ✓
+# Handoff — 2026-09-01 (later): DESIGN LOCKDOWN, 3 chunks landed
+
+Direction from Max: sharing is parked; lock down the in-app experience
+and design first. Nothing moved out of the app — the web viewer is an
+extra render target; the Link button stays hidden until shareConfig has
+keys.
+
+Landed (each typechecked, 96/96 tests, emulator-verified, committed):
+1. **Motion + touch feedback + preview home** — Sheet entrance
+   animation (240ms slide/fade + backdrop fade), Android hardware back
+   closes sheets (was exiting the app), KeyboardAvoidingView on BOTH
+   platforms (edge-to-edge Android doesn't resize the window; the
+   rename sheet was fully hidden behind the keyboard), `pressed()`
+   dim-on-touch on every high-touch Pressable, expo-haptics (tick on
+   select/rotation-snap, thump on flip), preview screen is now a home:
+   tappable title → rename sheet, Edit card = primary accent button.
+2. **Editor chrome on theme tokens** — all remaining hardcoded hexes in
+   ToolBar/EditorScreen/LayerPanel/App swept into theme.ts (new tokens:
+   bgBar, track, chipGlass, rowSelected, onAccent, glyph, danger).
+   Verified pixel-identical.
+3. **Eyedropper loupe + slider hit targets** (UX review #10, #9) —
+   drag-to-aim loupe (swatch + hex above the fingertip, ~30/s 1px
+   snapshots, haptic on commit); MiniSlider gets a ~50dp padded hit
+   area.
+
+**CRITICAL FIX riding along in chunk 1: Android bundling was broken**
+since the web-viewer work — `index.ts`'s `require('@shopify/react-
+native-skia/lib/module/web')` is bundled by Metro regardless of the
+Platform branch, dragging canvaskit-wasm (which imports `fs`) into the
+native bundle → dev-server 500. Fix: split entries — `index.ts`
+(native) / `index.web.ts` (LoadSkiaWeb gate), `package.json` main is
+now extensionless `"index"` so Metro platform-resolves. Web export not
+re-verified since the split — run `npx expo export --platform web`
+before the next viewer deploy.
+
+Open UX-review items needing Max's call: #6 two-finger rotate-vs-zoom
+discoverability (dedicated rotate handle? first-run hint), #7 undo/redo
+placement (top bar = worst one-handed reach). Remaining polish: pin
+hold-affordance wiggle, gradient tile icon, M7 onboarding/empty states.
+
+---
+
+# Earlier handoff — 2026-09-01: WEB VIEWER WORKING ✓
 
 ## Web share viewer: RESOLVED
 

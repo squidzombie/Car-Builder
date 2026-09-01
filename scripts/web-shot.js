@@ -15,7 +15,7 @@ async function main() {
   await page.setViewport({ width: 480, height: 900 })
   page.on('console', (m) => console.log(`[page ${m.type()}]`, m.text().slice(0, 300)))
   page.on('pageerror', (e) => console.log('[pageerror]', (e.stack ?? String(e)).slice(0, 1200)))
-  await page.goto(`http://localhost:8081${path}`, { waitUntil: 'networkidle2', timeout: 120000 })
+  await page.goto(`${process.env.BASE_URL ?? 'http://localhost:8081'}${path}`, { waitUntil: 'networkidle2', timeout: 120000 })
   // give CanvasKit + fonts + first paint a moment
   await new Promise((r) => setTimeout(r, 6000))
   // wiggle the mouse so the tilt engine gets input
