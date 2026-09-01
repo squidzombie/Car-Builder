@@ -1,5 +1,5 @@
 import React from 'react'
-import { Pressable, StyleSheet, Text, View } from 'react-native'
+import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, View } from 'react-native'
 import { color, radius, type } from './theme'
 
 // The one bottom-sheet container (Build 3): grab handle, title row, Done,
@@ -21,21 +21,29 @@ export function Sheet({ title, onClose, closeLabel = 'Done', backdrop, children,
   return (
     <View style={styles.overlay} pointerEvents="box-none">
       {backdrop ? <Pressable style={styles.backdrop} onPress={onClose} /> : null}
-      <View style={styles.sheet}>
-        <View style={styles.handle} />
-        <View style={styles.headerRow}>
-          <Text style={styles.title} numberOfLines={1}>
-            {title}
-          </Text>
-          <View style={styles.headerActions}>
-            {headerRight}
-            <Pressable style={styles.doneButton} hitSlop={8} onPress={onClose}>
-              <Text style={styles.doneText}>{closeLabel}</Text>
-            </Pressable>
+      {/* keep the sheet's inputs above the keyboard (iOS doesn't resize
+          the window the way Android's adjustResize does) */}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        enabled={Platform.OS === 'ios'}
+        pointerEvents="box-none"
+      >
+        <View style={styles.sheet}>
+          <View style={styles.handle} />
+          <View style={styles.headerRow}>
+            <Text style={styles.title} numberOfLines={1}>
+              {title}
+            </Text>
+            <View style={styles.headerActions}>
+              {headerRight}
+              <Pressable style={styles.doneButton} hitSlop={8} onPress={onClose}>
+                <Text style={styles.doneText}>{closeLabel}</Text>
+              </Pressable>
+            </View>
           </View>
+          {children}
         </View>
-        {children}
-      </View>
+      </KeyboardAvoidingView>
     </View>
   )
 }

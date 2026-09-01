@@ -70,8 +70,8 @@ const styles = StyleSheet.create({
   sliderRow: { gap: 6 },
   sliderLabel: { color: '#7f8db0', fontSize: 12 },
   track: {
-    height: 26,
-    borderRadius: 13,
+    height: 34,
+    borderRadius: 17,
     backgroundColor: '#1c2233',
     justifyContent: 'center',
     overflow: 'hidden',
@@ -86,7 +86,7 @@ const styles = StyleSheet.create({
   thumb: {
     position: 'absolute',
     width: 4,
-    height: 18,
+    height: 24,
     borderRadius: 2,
     marginLeft: -2,
     backgroundColor: '#4da3ff',

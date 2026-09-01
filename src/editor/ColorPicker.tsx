@@ -234,7 +234,9 @@ export function ColorPicker({ value, onChange, onGestureStart, onClose, onEyedro
 
         <View style={styles.wheelRow}>
           <View style={{ width: wheelSize, height: wheelSize }} {...wheelPan.panHandlers}>
-            <Canvas style={{ width: wheelSize, height: wheelSize }}>
+            {/* explicit background: a transparent Skia canvas on Android can
+                skip full-surface redraws and render partial content */}
+            <Canvas style={{ width: wheelSize, height: wheelSize, backgroundColor: '#10141f' }}>
               {ringSegments.map((seg, i) => (
                 <Path
                   key={i}
@@ -362,8 +364,8 @@ export function ColorPicker({ value, onChange, onGestureStart, onClose, onEyedro
 // Pinned swatches as a wrap grid with drag-to-reorder (§6). Tap applies,
 // hold ~450ms removes the pin, dragging past slop lifts the swatch and
 // drops it at the hovered slot (committed as one undo step on release).
-// 30px swatchBack + 8px grid gap:
-const PIN_SLOT = 38
+// 38px swatchBack + 8px grid gap (44pt-guideline-adjacent targets):
+const PIN_SLOT = 46
 
 function PinnedGrid({ colors, onPick }: { colors: Color[]; onPick: (c: Color) => void }) {
   const [drag, setDrag] = useState<{ from: number; dx: number; dy: number } | null>(null)
@@ -579,9 +581,9 @@ const styles = StyleSheet.create({
   swatchEmpty: { color: '#3d4560', fontSize: 12, paddingVertical: 6 },
   swatchStrip: { flexDirection: 'row', gap: 8, paddingVertical: 2 },
   swatchBack: {
-    width: 30,
-    height: 30,
-    borderRadius: 8,
+    width: 38,
+    height: 38,
+    borderRadius: 10,
     backgroundColor: '#e8e8e8',
     overflow: 'hidden',
     borderWidth: 1,

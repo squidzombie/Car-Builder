@@ -468,10 +468,13 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
             [b.x, b.y + b.h],
             [b.x + b.w, b.y + b.h],
           ]
-          for (let i = 0; i < 4; i++) {
+          // on small layers the four 24px hit zones would swallow the
+          // move-drag area — fall back to a single bottom-right handle
+          const small = Math.min(b.w, b.h) * o.t < 56
+          for (let i = small ? 3 : 0; i < 4; i++) {
             const hx = corners[i][0] * o.t + o.x
             const hy = corners[i][1] * o.t + o.y
-            if (Math.hypot(vx - hx, vy - hy) < 24) {
+            if (Math.hypot(vx - hx, vy - hy) < (small ? 20 : 24)) {
               const start = beginResize(sel, s.doc, i as 0 | 1 | 2 | 3)
               if (start) {
                 resizeSession.current = { id: sel.id, start }
@@ -736,16 +739,18 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
                         [selectionBox.x, selectionBox.y + selectionBox.h],
                         [selectionBox.x + selectionBox.w, selectionBox.y + selectionBox.h],
                       ] as [number, number][]
-                    ).map(([cx, cy], i) => (
-                      <View
-                        key={i}
-                        pointerEvents="none"
-                        style={[
-                          styles.handle,
-                          { left: cx * total + originX - 7, top: cy * total + originY - 7 },
-                        ]}
-                      />
-                    ))
+                    )
+                      .slice(Math.min(selectionBox.w, selectionBox.h) * total < 56 ? 3 : 0)
+                      .map(([cx, cy], i) => (
+                        <View
+                          key={i}
+                          pointerEvents="none"
+                          style={[
+                            styles.handle,
+                            { left: cx * total + originX - 7, top: cy * total + originY - 7 },
+                          ]}
+                        />
+                      ))
                   : null}
               </>
             ) : null}
@@ -770,6 +775,7 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
         stamp={stamp}
         onStamp={(patch) => setStamp((st) => ({ ...st, ...patch }))}
         shapes={allShapes}
+        drawTargetSelected={selected?.type === 'path'}
         onOpenColor={openPicker}
         onNewLayer={() => useEditor.getState().select(null)}
         onOpenBuilder={() => {
@@ -970,9 +976,11 @@ const styles = StyleSheet.create({
     borderColor: '#4da3ff',
   },
   zoomChip: {
+    // bottom-center: thumb-friendly, and resize handles live on CORNERS,
+    // so the chip can no longer sit on top of one
     position: 'absolute',
-    right: 12,
-    bottom: 12,
+    alignSelf: 'center',
+    bottom: 10,
     paddingHorizontal: 12,
     paddingVertical: 7,
     borderRadius: 14,
@@ -999,9 +1007,9 @@ const styles = StyleSheet.create({
   },
   propsActionText: { color: '#c9d6ea', fontSize: 12 },
   colorChipBack: {
-    width: 28,
-    height: 28,
-    borderRadius: 8,
+    width: 34,
+    height: 34,
+    borderRadius: 9,
     backgroundColor: '#e8e8e8',
     overflow: 'hidden',
     borderWidth: 1,

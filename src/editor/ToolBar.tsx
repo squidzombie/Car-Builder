@@ -47,6 +47,8 @@ type Props = {
   onOpenColor: (target: 'draw' | 'stamp') => void
   onNewLayer: () => void
   onOpenBuilder: () => void
+  /** the eraser only works on a selected drawing — used for the hint */
+  drawTargetSelected: boolean
 }
 
 export function ToolBar(p: Props) {
@@ -105,6 +107,10 @@ export function ToolBar(p: Props) {
             </Pressable>
           </View>
         </ScrollView>
+      ) : null}
+
+      {p.mode === 'draw' && p.draw.eraser && !p.drawTargetSelected ? (
+        <Text style={styles.hint}>Select a drawing in the layer list to erase from it</Text>
       ) : null}
 
       {p.mode === 'stamp' ? (
@@ -223,6 +229,7 @@ const styles = StyleSheet.create({
   },
   optionActive: { backgroundColor: '#2a3554', borderWidth: 1, borderColor: '#4da3ff' },
   optionText: { color: '#c9d6ea', fontSize: 12 },
+  hint: { color: '#ffd166', fontSize: 11, textAlign: 'center', paddingHorizontal: 16 },
   widthDot: { backgroundColor: '#c9d6ea' },
   colorDot: {
     width: 20,

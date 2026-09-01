@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native'
 import { Canvas, Group } from '@shopify/react-native-skia'
 import { CardRenderer } from '../renderer/CardRenderer'
 import { defaultViewState, type CardDocument } from '../model/types'
@@ -25,6 +25,7 @@ type Props = {
 }
 
 export function TemplateChooser({ onPick, onOpenSaved, onClose }: Props) {
+  const { height } = useWindowDimensions()
   const previews = useMemo(
     () => TEMPLATES.map((t) => ({ template: t, doc: t.make(`preview-${t.id}`) })),
     [],
@@ -36,6 +37,7 @@ export function TemplateChooser({ onPick, onOpenSaved, onClose }: Props) {
 
   return (
     <Sheet title="New card" onClose={onClose} closeLabel="Close" backdrop>
+      <ScrollView style={{ maxHeight: height * 0.62 }} showsVerticalScrollIndicator={false}>
         {saved.length > 0 ? (
           <>
             <Text style={styles.sectionTitle}>Your cards · hold to delete</Text>
@@ -81,6 +83,7 @@ export function TemplateChooser({ onPick, onOpenSaved, onClose }: Props) {
           ))}
         </View>
         <Text style={styles.hint}>Your current card is saved automatically</Text>
+      </ScrollView>
     </Sheet>
   )
 }

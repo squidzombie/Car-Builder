@@ -59,6 +59,7 @@ export function LayerPanel({ onAddPress }: { onAddPress: () => void }) {
           const selected = layer.id === selectedId
           return (
             <View style={[styles.row, selected && styles.rowSelected]}>
+              {selected ? <View style={styles.selectedBar} /> : null}
               <Pressable
                 style={styles.rowMain}
                 onPress={() => select(selected ? null : layer.id)}
@@ -109,7 +110,16 @@ export function LayerPanel({ onAddPress }: { onAddPress: () => void }) {
                   <IconButton name="chevron-up" onPress={() => moveLayer(layer.id, 1)} />
                   <IconButton name="chevron-down" onPress={() => moveLayer(layer.id, -1)} />
                   <IconButton name="copy" onPress={() => duplicateLayer(layer.id)} />
-                  <IconButton name="trash-2" onPress={() => deleteLayer(layer.id)} />
+                  {/* delete sits apart from the cluster, behind a divider,
+                      so a fat finger aiming at duplicate can't reach it */}
+                  <View style={styles.actionDivider} />
+                  <Pressable
+                    hitSlop={6}
+                    style={styles.iconButton}
+                    onPress={() => deleteLayer(layer.id)}
+                  >
+                    <Feather name="trash-2" size={15} color="#c76a72" />
+                  </Pressable>
                 </View>
               ) : null}
             </View>
@@ -169,6 +179,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   rowSelected: { backgroundColor: '#18203a' },
+  selectedBar: {
+    position: 'absolute',
+    left: 0,
+    top: 4,
+    bottom: 4,
+    width: 3,
+    borderRadius: 2,
+    backgroundColor: color.accent,
+  },
+  actionDivider: {
+    width: StyleSheet.hairlineWidth,
+    alignSelf: 'stretch',
+    marginVertical: 10,
+    marginHorizontal: 6,
+    backgroundColor: color.hairlineBright,
+  },
   rowMain: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 },
   typeIcon: { width: 18, textAlign: 'center' },
   name: { color: color.text, fontSize: type.base, flexShrink: 1 },
@@ -187,6 +213,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  actions: { flexDirection: 'row', alignItems: 'center' },
+  actions: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   hintText: { color: color.textGhost, fontSize: type.xs, textAlign: 'center', paddingTop: 6 },
 })
