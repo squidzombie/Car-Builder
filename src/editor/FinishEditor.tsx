@@ -48,58 +48,57 @@ export function FinishEditor({ layerId, onClose }: Props) {
 
   return (
     <Sheet title={`Finish · ${layer.name}`} onClose={onClose}>
-      {/* Family tabs + preset panel share one surface color: the open
-          family's chip flows seamlessly into the panel below it, so the
-          selection and its options read as one continuous thing. */}
-      <View style={styles.fxNav}>
+      {/* One surface for the whole picker: the family strip and its
+          presets live inside the same panel, so the selection and its
+          options are genuinely connected — no seam at any scroll
+          position. The open family is a filled pill on that surface. */}
+      <View style={styles.panel}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            <View style={styles.chipRow}>
+            <View style={styles.famRow}>
               <Pressable
-                style={pressed(styles.chip, !finish && styles.chipActive)}
+                style={pressed(styles.famChip, !finish && styles.famChipActive)}
                 onPress={() => patch((l) => (l.finish = undefined))}
               >
-                <Text style={[styles.chipText, !finish && styles.chipTextActive]}>None</Text>
+                <Text style={[styles.famText, !finish && styles.famTextActive]}>None</Text>
               </Pressable>
               {FAMILIES.map((f) => {
                 const open = family === f.key
                 return (
                   <Pressable
                     key={f.key}
-                    style={pressed(styles.chip, open && styles.tabOpen)}
+                    style={pressed(styles.famChip, open && styles.famChipActive)}
                     onPress={() => setFamily(f.key)}
                   >
-                    <Text style={[styles.chipText, open && styles.chipTextActive]}>{f.label}</Text>
+                    <Text style={[styles.famText, open && styles.famTextActive]}>{f.label}</Text>
                   </Pressable>
                 )
               })}
             </View>
           </ScrollView>
-          <View style={styles.panel}>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <View style={styles.tileRow}>
-                {FINISH_PRESETS.filter((p) => p.family === family).map((p) => {
-                  const active = finish?.family === p.family && finish?.preset === p.preset
-                  return (
-                    <Pressable
-                      key={p.preset}
-                      style={pressed(styles.tile)}
-                      onPress={() => pickPreset(p.family, p.preset)}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <View style={styles.tileRow}>
+              {FINISH_PRESETS.filter((p) => p.family === family).map((p) => {
+                const active = finish?.family === p.family && finish?.preset === p.preset
+                return (
+                  <Pressable
+                    key={p.preset}
+                    style={pressed(styles.tile)}
+                    onPress={() => pickPreset(p.family, p.preset)}
+                  >
+                    <View style={[styles.swatchWrap, active && styles.swatchWrapActive]}>
+                      <FinishSwatch preset={p} />
+                    </View>
+                    <Text
+                      style={[styles.tileLabel, active && styles.tileLabelActive]}
+                      numberOfLines={1}
                     >
-                      <View style={[styles.swatchWrap, active && styles.swatchWrapActive]}>
-                        <FinishSwatch preset={p} />
-                      </View>
-                      <Text
-                        style={[styles.tileLabel, active && styles.tileLabelActive]}
-                        numberOfLines={1}
-                      >
-                        {p.label}
-                      </Text>
-                    </Pressable>
-                  )
-                })}
-              </View>
-            </ScrollView>
-          </View>
+                      {p.label}
+                    </Text>
+                  </Pressable>
+                )
+              })}
+            </View>
+          </ScrollView>
         </View>
 
         {finish ? (
@@ -225,18 +224,28 @@ const styles = StyleSheet.create({
   chipActive,
   chipText,
   chipTextActive,
-  fxNav: { gap: 0 },
-  tabOpen: {
-    backgroundColor: PANEL,
-    borderBottomLeftRadius: 0,
-    borderBottomRightRadius: 0,
-  },
   panel: {
     backgroundColor: PANEL,
-    borderRadius: radius.lg,
-    paddingVertical: 10,
+    borderRadius: radius.xl,
+    overflow: 'hidden',
   },
-  tileRow: { flexDirection: 'row', gap: 10, paddingHorizontal: 12 },
+  famRow: {
+    flexDirection: 'row',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingTop: 10,
+  },
+  famChip: {
+    minHeight: 34,
+    paddingHorizontal: 14,
+    borderRadius: radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  famChipActive: { backgroundColor: color.chipActive },
+  famText: { color: color.textDim, fontSize: type.md },
+  famTextActive: { color: color.text, fontWeight: '600' },
+  tileRow: { flexDirection: 'row', gap: 10, paddingHorizontal: 14, paddingVertical: 12 },
   tile: { alignItems: 'center', gap: 4, width: SWATCH + 10 },
   swatchWrap: {
     borderRadius: radius.md,
