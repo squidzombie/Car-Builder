@@ -88,18 +88,129 @@ const DECO_BRACKET: Shape = {
   builtIn: false,
 }
 
+// ---- shaped card frames (feedback: borders with actual character) ----
+// Each is a solid frame with a shaped photo window: outer boundary +
+// inner window subpath, filled evenodd. Normalized to the card box, so
+// corner details use y ≈ x · (CARD_W/CARD_H) to look square on-card.
+
+/** Scalloped window: each edge is a run of arcs bowing into the window. */
+function scallopWindowPath(
+  t: number,
+  ty: number,
+  bumpsX: number,
+  bumpsY: number,
+  d: number,
+  dy: number,
+): string {
+  const f = (v: number) => Number(v.toFixed(4))
+  const w = 1 - 2 * t
+  const h = 1 - 2 * ty
+  let p = `M${f(t)} ${f(ty)}`
+  for (let i = 0; i < bumpsX; i++) {
+    const x0 = t + (w * i) / bumpsX
+    const x1 = t + (w * (i + 1)) / bumpsX
+    p += ` Q${f((x0 + x1) / 2)} ${f(ty + dy)} ${f(x1)} ${f(ty)}`
+  }
+  for (let i = 0; i < bumpsY; i++) {
+    const y0 = ty + (h * i) / bumpsY
+    const y1 = ty + (h * (i + 1)) / bumpsY
+    p += ` Q${f(1 - t - d)} ${f((y0 + y1) / 2)} ${f(1 - t)} ${f(y1)}`
+  }
+  for (let i = bumpsX; i > 0; i--) {
+    const x0 = t + (w * i) / bumpsX
+    const x1 = t + (w * (i - 1)) / bumpsX
+    p += ` Q${f((x0 + x1) / 2)} ${f(1 - ty - dy)} ${f(x1)} ${f(1 - ty)}`
+  }
+  for (let i = bumpsY; i > 0; i--) {
+    const y0 = ty + (h * i) / bumpsY
+    const y1 = ty + (h * (i - 1)) / bumpsY
+    p += ` Q${f(t + d)} ${f((y0 + y1) / 2)} ${f(t)} ${f(y1)}`
+  }
+  return p + ' Z'
+}
+
+const ANGLE_CUT_FRAME: Shape = {
+  id: 'frame-angle-cut',
+  name: 'Angle-cut frame',
+  fillRule: 'evenodd',
+  path:
+    'M0.11 0 L0.89 0 L1 0.0786 L1 0.9214 L0.89 1 L0.11 1 L0 0.9214 L0 0.0786 Z ' +
+    'M0.155 0.0393 L0.845 0.0393 L0.945 0.1107 L0.945 0.8893 L0.845 0.9607 L0.155 0.9607 L0.055 0.8893 L0.055 0.1107 Z',
+  builtIn: false,
+}
+
+const NOTCH_FRAME: Shape = {
+  id: 'frame-notched',
+  name: 'Notched frame',
+  fillRule: 'evenodd',
+  path:
+    'M0 0 L1 0 L1 1 L0 1 Z ' +
+    'M0.16 0.0357 L0.84 0.0357 L0.84 0.1143 L0.95 0.1143 L0.95 0.8857 L0.84 0.8857 L0.84 0.9643 L0.16 0.9643 L0.16 0.8857 L0.05 0.8857 L0.05 0.1143 L0.16 0.1143 Z',
+  builtIn: false,
+}
+
+const ARCH_FRAME: Shape = {
+  id: 'frame-arch',
+  name: 'Arch frame',
+  fillRule: 'evenodd',
+  path:
+    'M0 0 L1 0 L1 1 L0 1 Z ' +
+    'M0.055 0.30 C0.055 0.06 0.945 0.06 0.945 0.30 L0.945 0.9607 L0.055 0.9607 Z',
+  builtIn: false,
+}
+
+const SCALLOP_FRAME: Shape = {
+  id: 'frame-scalloped',
+  name: 'Scalloped frame',
+  fillRule: 'evenodd',
+  path: 'M0 0 L1 0 L1 1 L0 1 Z ' + scallopWindowPath(0.06, 0.0429, 6, 8, 0.045, 0.032),
+  builtIn: false,
+}
+
+/** Full-card shaped frame layer (window baked into the shape). */
+function frameShape(shape: Shape, color: Color, finish?: Layer['finish']): Layer {
+  return layer({
+    name: 'Border',
+    type: 'shape',
+    transform: { x: 0, y: 0, rotation: 0, scaleX: 1, scaleY: 1 },
+    shape: { shapeId: shape.id, paint: { color }, w: CARD_W, h: CARD_H },
+    finish,
+  })
+}
+
 export const BORDER_PRESETS: ElementPreset[] = [
   { id: 'thin', name: 'Thin', build: () => ({ layers: [frame(22, 8, '#f4f2ec')] }) },
-  { id: 'bold', name: 'Bold', build: () => ({ layers: [frame(20, 26, '#f4f2ec')] }) },
   {
-    id: 'double',
-    name: 'Double',
-    build: () => ({ layers: [frame(18, 10, '#f4f2ec'), frame(44, 5, '#f4f2ec')] }),
+    id: 'angle-cut',
+    name: 'Angle cut',
+    build: () => ({
+      shapes: [ANGLE_CUT_FRAME],
+      layers: [frameShape(ANGLE_CUT_FRAME, '#f4f2ec')],
+    }),
   },
   {
-    id: 'two-tone',
-    name: 'Two-tone',
-    build: () => ({ layers: [frame(16, 24, '#12355b'), frame(42, 6, '#f1c40f')] }),
+    id: 'notched',
+    name: 'Notched',
+    build: () => ({
+      shapes: [NOTCH_FRAME],
+      layers: [frameShape(NOTCH_FRAME, '#f4f2ec')],
+    }),
+  },
+  {
+    id: 'arch',
+    name: 'Arch top',
+    build: () => ({
+      shapes: [ARCH_FRAME],
+      layers: [frameShape(ARCH_FRAME, '#f4f2ec')],
+    }),
+  },
+  {
+    id: 'scalloped',
+    name: 'Scalloped',
+    build: () => ({
+      shapes: [SCALLOP_FRAME],
+      layers: [frameShape(SCALLOP_FRAME, '#f4f2ec')],
+    }),
   },
   {
     id: 'gold-plate',
