@@ -135,6 +135,12 @@ export const BUILTIN_SHAPES: Shape[] = [
     builtIn: true,
     defaultAspect: 1.6,
   },
+  {
+    id: 'rounded',
+    name: 'Rounded',
+    path: 'M0.16 0 L0.84 0 Q1 0 1 0.16 L1 0.84 Q1 1 0.84 1 L0.16 1 Q0 1 0 0.84 L0 0.16 Q0 0 0.16 0 Z',
+    builtIn: true,
+  },
   { id: 'triangle', name: 'Triangle', path: buildPolygonPath({ sides: 3 }), builtIn: true },
   {
     id: 'star5',

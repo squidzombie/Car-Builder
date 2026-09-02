@@ -151,12 +151,33 @@ function LayerNode({
     )
   }
 
+  // Shape masks clip the layer group directly: a dstIn pass only touches
+  // pixels its geometry covers, so a shape drawn dstIn would leave
+  // everything outside itself intact (no-op). Fades keep the dstIn pass —
+  // their full-card gradient rect covers the whole surface.
+  let shapeClip
+  if (layer.mask?.type === 'shape' && layer.mask.assetId) {
+    const maskShape = getShape(layer.mask.assetId, doc.shapes)
+    if (maskShape) {
+      const mp = layer.mask.params
+      shapeClip =
+        shapePath(
+          maskShape.path,
+          mp.x ?? 0,
+          mp.y ?? 0,
+          mp.w ?? w,
+          mp.h ?? h,
+          maskShape.fillRule,
+        ) ?? undefined
+    }
+  }
+
   return (
-    <Group layer={layerPaint}>
+    <Group layer={layerPaint} clip={shapeClip}>
       {embossPasses}
       {content}
       {layer.finish ? <FinishPass layer={layer} doc={doc} viewState={viewState} /> : null}
-      {layer.mask ? (
+      {layer.mask && layer.mask.type !== 'shape' ? (
         <MaskPass mask={layer.mask} w={w} h={h} assets={assets} shapes={doc.shapes} />
       ) : null}
     </Group>
@@ -226,14 +247,7 @@ function MaskPass({
       </Rect>
     )
   }
-  if (mask.type === 'shape' && mask.assetId) {
-    const shape = getShape(mask.assetId, shapes)
-    if (shape) {
-      const path = shapePath(shape.path, p.x ?? 0, p.y ?? 0, p.w ?? w, p.h ?? h, shape.fillRule)
-      if (path) return <Path path={path} color="#ffffff" blendMode="dstIn" />
-    }
-    return null
-  }
+  // (shape masks are handled as a clip on the layer group in LayerNode)
   if (mask.type === 'raster' && mask.assetId && assets?.[mask.assetId]) {
     return (
       <SkiaImage

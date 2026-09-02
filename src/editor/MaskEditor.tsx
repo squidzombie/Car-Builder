@@ -1,15 +1,19 @@
 import React from 'react'
-import { Pressable, StyleSheet, Text, View } from 'react-native'
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import type { Layer, Mask } from '../model/types'
 import { useEditor } from '../state/useEditor'
+import { BUILTIN_SHAPES } from '../model/shapes'
+import { layerBounds } from './bounds'
+import { ShapeGlyph } from './ToolBar'
 import { MiniSlider } from './MiniSlider'
 import { Sheet } from './Sheet'
-import { chip, chipActive, chipText, chipTextActive } from './theme'
+import { chip, chipActive, chipText, chipTextActive, color, pressed, radius } from './theme'
 
-// Fade-mask editor (CLAUDE.md §4): linear/radial fades with adjustable
-// angle and softness — the classic "player fades into background" look.
-// Slider drags are transient updates grouped into one undo step; the
-// card stays visible above the sheet, so edits preview live.
+// Mask editor (CLAUDE.md §4): linear/radial fades — the classic "player
+// fades into background" look — plus shape masks: clip the layer to a
+// circle, hexagon, or any custom/drawn shape (pairs with the subject
+// cutout). Slider drags are transient updates grouped into one undo
+// step; the card stays visible above the sheet, so edits preview live.
 
 type Props = { layerId: string; onClose: () => void }
 
@@ -18,9 +22,11 @@ const RADIAL_DEFAULTS = { cx: 0.5, cy: 0.5, inner: 0.45, outer: 0.95 }
 
 export function MaskEditor({ layerId, onClose }: Props) {
   const side = useEditor((s) => s.side)
+  const doc = useEditor((s) => s.doc)
   const layer = useEditor((s) => s.doc[side].layers.find((l) => l.id === layerId))
   if (!layer) return null
   const mask = layer.mask
+  const allShapes = [...BUILTIN_SHAPES, ...(doc.shapes ?? [])]
 
   const setMask = (next: Mask | undefined) => {
     useEditor.getState().updateLayer(layerId, (l: Layer) => {
@@ -42,27 +48,49 @@ export function MaskEditor({ layerId, onClose }: Props) {
   const p = mask?.params ?? {}
 
   return (
-    <Sheet title={`Fade mask · ${layer.name}`} onClose={onClose}>
+    <Sheet title={`Mask · ${layer.name}`} onClose={onClose}>
       <View style={styles.typeRow}>
           {(
             [
               ['none', 'None'],
               ['linear-fade', 'Linear'],
               ['radial-fade', 'Radial'],
+              ['shape', 'Shape'],
             ] as const
           ).map(([type, label]) => {
             const active = type === 'none' ? !mask : mask?.type === type
             return (
               <Pressable
                 key={type}
-                style={[styles.typeChip, active && styles.typeChipActive]}
+                style={pressed(styles.typeChip, active && styles.typeChipActive)}
                 onPress={() => {
                   if (type === 'none') setMask(undefined)
-                  else if (mask?.type !== type)
-                    setMask({
-                      type,
-                      params: { ...(type === 'linear-fade' ? LINEAR_DEFAULTS : RADIAL_DEFAULTS) },
-                    })
+                  else if (mask?.type !== type) {
+                    if (type === 'shape') {
+                      // fit the shape window to the layer as it stands
+                      const b = layerBounds(layer, doc)
+                      setMask({
+                        type,
+                        assetId: 'circle',
+                        params: {
+                          x: b.x,
+                          y: b.y,
+                          w: b.w,
+                          h: b.h,
+                          cx: b.x + b.w / 2,
+                          cy: b.y + b.h / 2,
+                          bw: b.w,
+                          bh: b.h,
+                          s: 1,
+                        },
+                      })
+                    } else {
+                      setMask({
+                        type,
+                        params: { ...(type === 'linear-fade' ? LINEAR_DEFAULTS : RADIAL_DEFAULTS) },
+                      })
+                    }
+                  }
                 }}
               >
                 <Text style={[styles.typeText, active && styles.typeTextActive]}>{label}</Text>
@@ -70,6 +98,45 @@ export function MaskEditor({ layerId, onClose }: Props) {
             )
           })}
         </View>
+
+        {mask?.type === 'shape' ? (
+          <>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <View style={styles.shapeRow}>
+                {allShapes.map((sh) => (
+                  <Pressable
+                    key={sh.id}
+                    style={pressed(styles.shapeChip, mask.assetId === sh.id && styles.shapeChipActive)}
+                    onPress={() =>
+                      useEditor.getState().updateLayer(layerId, (l: Layer) => {
+                        if (l.mask) l.mask.assetId = sh.id
+                      })
+                    }
+                  >
+                    <ShapeGlyph shape={sh} />
+                  </Pressable>
+                ))}
+              </View>
+            </ScrollView>
+            <MiniSlider
+              label={`Size · ${(p.s ?? 1).toFixed(2)}`}
+              value={p.s ?? 1}
+              min={0.4}
+              max={1.6}
+              onBegin={beginSlider}
+              onChange={(v) => {
+                const bw = p.bw ?? 100
+                const bh = p.bh ?? 100
+                const cx = p.cx ?? 0
+                const cy = p.cy ?? 0
+                patchParams(
+                  { s: v, w: bw * v, h: bh * v, x: cx - (bw * v) / 2, y: cy - (bh * v) / 2 },
+                  true,
+                )
+              }}
+            />
+          </>
+        ) : null}
 
         {mask?.type === 'linear-fade' ? (
           <>
@@ -140,4 +207,15 @@ const styles = StyleSheet.create({
   typeChipActive: chipActive,
   typeText: chipText,
   typeTextActive: chipTextActive,
+  shapeRow: { flexDirection: 'row', gap: 6 },
+  shapeChip: {
+    minWidth: 40,
+    height: 36,
+    borderRadius: radius.sm,
+    backgroundColor: color.chip,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+  },
+  shapeChipActive: { backgroundColor: color.chipActive, borderWidth: 1, borderColor: color.accent },
 })
