@@ -1,4 +1,34 @@
-# Handoff — 2026-09-01 (latest): TestFlight run 4 queued
+# Handoff — 2026-09-02: testing-feedback batch (post run 4)
+
+Worked Max's review doc in its suggested order; all emulator-verified:
+1. Image masking (verify-first): renderer's 'shape' mask branch existed
+   since Build 3 but had NO UI and was a silent no-op (dstIn only
+   touches pixels the shape covers). Fixed as a clip on the layer
+   group; Mask sheet gains Shape type + picker + Size; new Rounded
+   builtin. Works with drawn shapes and pairs with the cutout.
+2. Geometric audit: cracked-ice/mosaic/prizm-facets/disco were ONE
+   voronoi at different params. Disco rebuilt as mirror-ball orbs
+   (mode 3), Checkerboard (mode 4) replaces trademark 'Mosaic',
+   'Prizm Facets' renamed Facet + differentiated (big flat cells).
+3. FX menu redone TWICE - Max rejected the text-header version
+   mid-session; final: open family chip shares the preset panel's
+   surface and flows into it (connected tab), presets are 54px LIVE
+   shader swatches with tiny captions. He wants visual-first, minimal
+   descriptive text - remember for future UI.
+4. Wear scratches strictly light-gated (no 0.22 baseline) - face is
+   clean at rest; Max judges on device, full removal is the fallback.
+5. Borders: Angle cut / Notched / Arch top / Scalloped shaped frames
+   (evenodd frame shapes, geometry renders in docs/borders via
+   scripts/check-frames.ts); Bold/Double/Two-tone cut.
+6. Preset bundling (open): recommended keeping effect-bundled borders
+   as curated combos - awaiting Max's call.
+NOTE: emulator app state was wiped during debugging (fresh M1 demo
+card + onboarding replays). adb root kills the adb reverse - re-run
+`adb reverse tcp:8081 tcp:8081` after any root/unroot.
+
+---
+
+# Earlier — 2026-09-01: TestFlight run 4 queued
 
 EAS iOS build a7b14ed4 (production) queued with everything below; Max
 submits via `npx eas-cli submit -p ios --latest`. This build carries
