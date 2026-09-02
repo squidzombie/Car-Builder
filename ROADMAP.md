@@ -134,6 +134,14 @@ per-screen tweaks.
   sheet over the tilting demo card, flag in the state file).
 - M7 remainder: perf pass (Reanimated shared-value tilt if needed),
   store assets, empty states.
+- M7 VISUAL MODERNIZATION PASS (Max 2026-09-02: "whole UI feels a bit
+  dated — not functionality, just visually"). Direction from the
+  approved FX picker v3: one-surface containment over faked joins,
+  soft filled pills over 1px-bordered chips, live visual previews
+  over text, radius.xl cards, more breathing room. Sweep every sheet
+  and bar (ToolBar options, Mask/Text/Builder sheets, props bar,
+  layer panel, preview buttons). Ask Max for reference apps or
+  screenshots he considers current before starting.
 
 ## Working notes
 
