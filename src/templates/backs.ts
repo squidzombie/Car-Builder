@@ -38,7 +38,7 @@ export function makeStandardBack(opts: {
       name: 'Background',
       type: 'fill',
       fill: { paint: { color: opts.bg } },
-      finish: makeFinish('geometric', 'mosaic', { intensity: 0.3 }),
+      finish: makeFinish('geometric', 'checkerboard', { intensity: 0.3 }),
     }),
     backLayer({
       id: 'back-logo',

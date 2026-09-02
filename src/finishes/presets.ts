@@ -19,11 +19,12 @@ export const FINISH_PRESETS: FinishPreset[] = [
   { family: 'spectrum', preset: 'wave-refractor', label: 'Wave Refractor', bold: false, scale: 1, params: { p0: 22, p1: 1.05, p2: 0.8, p3: 2.2 } },
 
   // Geometric — p0 edgeBrightness, p1 hueSpread, p2 cellSpecular, p3 density
-  // (mode 0 voronoi, 1 circle lattice, 2 bismuth hoppers)
+  // (mode 0 voronoi, 1 circle lattice, 2 bismuth hoppers, 3 disco orbs,
+  // 4 checkerboard tiles)
   { family: 'geometric', preset: 'cracked-ice', label: 'Cracked Ice', bold: true, scale: 1, params: { p0: 0.9, p1: 0.5, p2: 0.5, p3: 7 } },
-  { family: 'geometric', preset: 'mosaic', label: 'Mosaic', bold: false, scale: 1, params: { p0: 0.25, p1: 0.9, p2: 0.4, p3: 12 } },
-  { family: 'geometric', preset: 'prizm-facets', label: 'Prizm Facets', bold: false, scale: 1, params: { p0: 0.15, p1: 1.0, p2: 0.9, p3: 9 } },
-  { family: 'geometric', preset: 'disco', label: 'Disco', bold: false, scale: 1, params: { p0: 0.35, p1: 1.4, p2: 1.2, p3: 16 } },
+  { family: 'geometric', preset: 'facet', label: 'Facet', bold: false, scale: 1, params: { p0: 0.08, p1: 1.0, p2: 1.3, p3: 4.5 } },
+  { family: 'geometric', preset: 'checkerboard', label: 'Checkerboard', bold: false, scale: 1, params: { p0: 0.7, p1: 0.8, p2: 1.0, p3: 10, mode: 4 } },
+  { family: 'geometric', preset: 'disco', label: 'Disco', bold: false, scale: 1, params: { p0: 0.9, p1: 1.2, p2: 1.2, p3: 14, mode: 3 } },
   { family: 'geometric', preset: 'circles', label: 'Circles', bold: false, scale: 1, params: { p0: 0.85, p1: 0.7, p2: 0.6, p3: 6, mode: 1 } },
   { family: 'geometric', preset: 'bismuth', label: 'Bismuth', bold: false, scale: 1, params: { p0: 0.9, p1: 1.2, p2: 0.7, p3: 6, mode: 2 } },
 

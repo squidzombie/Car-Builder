@@ -1,10 +1,10 @@
 import { UNIFORMS, HELPERS } from './common.sksl'
 
 // Geometric family: faceted patterns, each cell/element with its own hue
-// offset and specular. Presets: cracked ice, mosaic, prizm facets, disco
-// (voronoi, uMode 0), circles (overlapping ring lattice like the classic
-// Prizm "circles" foil, uMode 1), bismuth (stepped rectilinear hoppers
-// like bismuth crystal growth, uMode 2).
+// offset and specular. Modes: 0 voronoi (cracked ice / facet), 1 circles
+// (overlapping ring lattice foil), 2 bismuth (stepped rectilinear
+// hoppers), 3 disco (scattered mirror-ball orbs catching light), 4
+// checkerboard (alternating mirrored tiles).
 // uP0 = edge/line brightness
 // uP1 = per-cell hue spread
 // uP2 = cell specular strength
@@ -22,7 +22,63 @@ half4 main(float2 xy) {
   float3 col = float3(0.0);
   float energy = 0.0; // drives alpha alongside specular
 
-  if (uMode > 1.5) {
+  if (uMode > 3.5) {
+    // --- checkerboard: alternating mirrored tiles ---
+    float2 p = uv * float2(aspect, 1.0) * uP3 * uScale;
+    float2 cell = floor(p);
+    float2 f = fract(p) - 0.5;
+    float parity = mod(cell.x + cell.y, 2.0);
+    float tileRand = hash21(cell);
+
+    col = paletteColor(parity * 0.5 + tileRand * uP1 * 0.25 + phase + (uv.x + uv.y) * 0.2);
+
+    // the two tile sets are mirrored opposite ways, so they alternate
+    // catching the light as the card tilts
+    float flash = pow(max(0.0, sin(parity * 3.14159 + phase * 3.0)), 3.0) * uP2;
+    col += flash * (0.6 + 0.4 * tileRand);
+
+    float toEdge = 0.5 - max(abs(f.x), abs(f.y));
+    float seam = smoothstep(0.06, 0.0, toEdge) * uP0;
+    col = col * (0.75 + 0.25 * smoothstep(0.0, 0.1, toEdge));
+    col += seam;
+    energy = flash * 0.6 + seam * 0.5;
+  } else if (uMode > 2.5) {
+    // --- disco: small circular refractive orbs, mirror-ball style ---
+    float2 p = uv * float2(aspect, 1.0) * uP3 * uScale;
+    float2 cellD = floor(p);
+    float2 fd = fract(p);
+    float glowD = 0.0;
+    for (int gy = -1; gy <= 1; gy++) {
+      for (int gx = -1; gx <= 1; gx++) {
+        float2 g = float2(float(gx), float(gy));
+        float2 id = cellD + g;
+        float2 jit = hash22(id);
+        float2 center = g + float2(0.3, 0.3) + jit * 0.4;
+        float rad = 0.17 + hash21(id + 7.3) * 0.13;
+        float d = distance(fd, center);
+        if (d < rad) {
+          float orbRand = hash21(id);
+          float nd = d / rad; // 0 center .. 1 rim
+          // each orb faces a random direction; it blazes when the tilt
+          // sweeps past that direction (lots of little points of light)
+          float catch_ = pow(max(0.0, sin(orbRand * 6.2831 + phase * 4.0)), 6.0);
+          float3 orb = paletteColor(orbRand * uP1 + phase * 0.6);
+          // convex lens shading + a specular dot that slides with tilt
+          float ang = orbRand * 6.2831 + phase * 2.0;
+          float2 lightDir = float2(cos(ang), sin(ang));
+          float specDot = pow(
+            max(0.0, 1.0 - distance(fd, center + lightDir * rad * 0.35) / (rad * 0.55)),
+            2.0
+          );
+          float body = (1.0 - nd * nd) * 0.55;
+          col += orb * (body + catch_ * 1.2) * uP0;
+          col += specDot * (0.35 + catch_) * uP2 * 0.5;
+          glowD += body * 0.35 + catch_ * 0.8 + specDot * 0.25;
+        }
+      }
+    }
+    energy = min(glowD, 1.4) * 0.8;
+  } else if (uMode > 1.5) {
     // --- bismuth: jittered stepped square hoppers ---
     float2 p = uv * float2(aspect, 1.0) * uP3 * uScale;
     float2 cell = floor(p);
