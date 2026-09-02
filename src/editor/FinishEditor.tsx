@@ -5,7 +5,7 @@ import { FINISH_PRESETS, makeFinish } from '../finishes/presets'
 import { useEditor } from '../state/useEditor'
 import { MiniSlider } from './MiniSlider'
 import { Sheet } from './Sheet'
-import { chip, chipActive, chipText, chipTextActive, color, type } from './theme'
+import { chip, chipActive, chipText, chipTextActive, color, pressed, radius, type } from './theme'
 
 // Finish picker (M4, CLAUDE.md §5): per-layer family + preset, intensity
 // and pattern scale, and the palette mode — 'custom' feeds the card's
@@ -45,29 +45,27 @@ export function FinishEditor({ layerId, onClose }: Props) {
 
   return (
     <Sheet title={`Finish · ${layer.name}`} onClose={onClose}>
+      {/* level 1: finish family. A family being browsed is "open"
+          (filled); the family actually applied also gets the accent
+          ring — so the two states read differently at a glance. */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false}>
           <View style={styles.chipRow}>
             <Pressable
-              style={[styles.chip, !finish && styles.chipActive]}
+              style={pressed(styles.chip, !finish && styles.chipActive)}
               onPress={() => patch((l) => (l.finish = undefined))}
             >
               <Text style={[styles.chipText, !finish && styles.chipTextActive]}>None</Text>
             </Pressable>
             {FAMILIES.map((f) => {
-              const active = family === f.key
+              const open = family === f.key
+              const applied = finish?.family === f.key
               return (
                 <Pressable
                   key={f.key}
-                  style={[styles.chip, active && finish?.family === f.key && styles.chipActive]}
+                  style={pressed(styles.chip, open && styles.chipOpen, applied && styles.chipActive)}
                   onPress={() => setFamily(f.key)}
                 >
-                  <Text
-                    style={[
-                      styles.chipText,
-                      active && finish?.family === f.key && styles.chipTextActive,
-                      active && styles.chipTextFocus,
-                    ]}
-                  >
+                  <Text style={[styles.chipText, (open || applied) && styles.chipTextActive]}>
                     {f.label}
                   </Text>
                 </Pressable>
@@ -76,22 +74,29 @@ export function FinishEditor({ layerId, onClose }: Props) {
           </View>
         </ScrollView>
 
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          <View style={styles.chipRow}>
-            {FINISH_PRESETS.filter((p) => p.family === family).map((p) => {
-              const active = finish?.family === p.family && finish?.preset === p.preset
-              return (
-                <Pressable
-                  key={p.preset}
-                  style={[styles.chip, active && styles.chipActive]}
-                  onPress={() => pickPreset(p.family, p.preset)}
-                >
-                  <Text style={[styles.chipText, active && styles.chipTextActive]}>{p.label}</Text>
-                </Pressable>
-              )
-            })}
-          </View>
-        </ScrollView>
+        {/* level 2: the open family's presets, nested in a recessed
+            panel with a header naming where you are */}
+        <View style={styles.presetPanel}>
+          <Text style={styles.presetHeader}>
+            {FAMILIES.find((f) => f.key === family)?.label ?? ''} · pick a pattern
+          </Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <View style={styles.presetRow}>
+              {FINISH_PRESETS.filter((p) => p.family === family).map((p) => {
+                const active = finish?.family === p.family && finish?.preset === p.preset
+                return (
+                  <Pressable
+                    key={p.preset}
+                    style={pressed(styles.chip, active && styles.chipActive)}
+                    onPress={() => pickPreset(p.family, p.preset)}
+                  >
+                    <Text style={[styles.chipText, active && styles.chipTextActive]}>{p.label}</Text>
+                  </Pressable>
+                )
+              })}
+            </View>
+          </ScrollView>
+        </View>
 
         {finish ? (
           <>
@@ -192,7 +197,22 @@ const styles = StyleSheet.create({
   chipActive,
   chipText,
   chipTextActive,
-  chipTextFocus: { color: color.textMid },
+  chipOpen: { backgroundColor: color.chipActive },
+  presetPanel: {
+    backgroundColor: color.track,
+    borderRadius: radius.lg,
+    paddingVertical: 10,
+    gap: 8,
+  },
+  presetHeader: {
+    color: color.textDim,
+    fontSize: type.xs,
+    fontWeight: '600',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+    paddingHorizontal: 12,
+  },
+  presetRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 12 },
   paletteRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   paletteLabel: { color: color.textDim, fontSize: type.sm, marginRight: 4 },
   hint: { color: color.textGhost, fontSize: type.sm, textAlign: 'center', paddingVertical: 8 },

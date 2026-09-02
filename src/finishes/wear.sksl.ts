@@ -56,20 +56,22 @@ half4 main(float2 xy) {
     float h = hash(float2(cell, fk * 7.0 + uSeed));
 
     // only some lanes carry a scratch
-    float lane = step(h, 0.30 * uScratches);
+    float lane = step(h, 0.22 * uScratches);
     float f = abs(fract(across) - 0.5) * spacing;
-    float line_ = smoothstep(1.9, 0.2, f);
+    float line_ = smoothstep(1.5, 0.2, f);
 
     // short segments, not edge-to-edge lines
     float along = dot(xy, dir) / (90.0 + 180.0 * h) + h * 37.0;
     float fa = fract(along);
     float seg = smoothstep(0.04, 0.14, fa) * smoothstep(0.58, 0.42, fa);
 
-    // glint: flares as the light sweeps across the scratch direction
+    // strictly light-gated: a scratch is invisible until the light
+    // sweeps across its direction, then it flares briefly — a constant
+    // baseline made them read as drawn-on
     float alignment = abs(dot(perp, lightDir));
-    float glint = 0.22 + 0.78 * pow(alignment, 8.0);
+    float glint = pow(alignment, 10.0);
 
-    glow += lane * line_ * seg * glint * 1.3;
+    glow += lane * line_ * seg * glint * 1.1;
   }
 
   // --- edge whitening ---
