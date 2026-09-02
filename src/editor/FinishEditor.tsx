@@ -1,7 +1,10 @@
-import React, { useState } from 'react'
+import React, { useMemo, useState } from 'react'
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
-import type { FinishFamily, Layer } from '../model/types'
-import { FINISH_PRESETS, makeFinish } from '../finishes/presets'
+import { Canvas, Rect, Shader } from '@shopify/react-native-skia'
+import { lightFromTilt, type FinishFamily, type Layer, type ViewState } from '../model/types'
+import { FINISH_PRESETS, makeFinish, type FinishPreset } from '../finishes/presets'
+import { getFinishEffect } from '../finishes'
+import { buildFinishUniforms } from '../finishes/uniforms'
 import { useEditor } from '../state/useEditor'
 import { MiniSlider } from './MiniSlider'
 import { Sheet } from './Sheet'
@@ -45,57 +48,58 @@ export function FinishEditor({ layerId, onClose }: Props) {
 
   return (
     <Sheet title={`Finish · ${layer.name}`} onClose={onClose}>
-      {/* level 1: finish family. A family being browsed is "open"
-          (filled); the family actually applied also gets the accent
-          ring — so the two states read differently at a glance. */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          <View style={styles.chipRow}>
-            <Pressable
-              style={pressed(styles.chip, !finish && styles.chipActive)}
-              onPress={() => patch((l) => (l.finish = undefined))}
-            >
-              <Text style={[styles.chipText, !finish && styles.chipTextActive]}>None</Text>
-            </Pressable>
-            {FAMILIES.map((f) => {
-              const open = family === f.key
-              const applied = finish?.family === f.key
-              return (
-                <Pressable
-                  key={f.key}
-                  style={pressed(styles.chip, open && styles.chipOpen, applied && styles.chipActive)}
-                  onPress={() => setFamily(f.key)}
-                >
-                  <Text style={[styles.chipText, (open || applied) && styles.chipTextActive]}>
-                    {f.label}
-                  </Text>
-                </Pressable>
-              )
-            })}
-          </View>
-        </ScrollView>
-
-        {/* level 2: the open family's presets, nested in a recessed
-            panel with a header naming where you are */}
-        <View style={styles.presetPanel}>
-          <Text style={styles.presetHeader}>
-            {FAMILIES.find((f) => f.key === family)?.label ?? ''} · pick a pattern
-          </Text>
+      {/* Family tabs + preset panel share one surface color: the open
+          family's chip flows seamlessly into the panel below it, so the
+          selection and its options read as one continuous thing. */}
+      <View style={styles.fxNav}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            <View style={styles.presetRow}>
-              {FINISH_PRESETS.filter((p) => p.family === family).map((p) => {
-                const active = finish?.family === p.family && finish?.preset === p.preset
+            <View style={styles.chipRow}>
+              <Pressable
+                style={pressed(styles.chip, !finish && styles.chipActive)}
+                onPress={() => patch((l) => (l.finish = undefined))}
+              >
+                <Text style={[styles.chipText, !finish && styles.chipTextActive]}>None</Text>
+              </Pressable>
+              {FAMILIES.map((f) => {
+                const open = family === f.key
                 return (
                   <Pressable
-                    key={p.preset}
-                    style={pressed(styles.chip, active && styles.chipActive)}
-                    onPress={() => pickPreset(p.family, p.preset)}
+                    key={f.key}
+                    style={pressed(styles.chip, open && styles.tabOpen)}
+                    onPress={() => setFamily(f.key)}
                   >
-                    <Text style={[styles.chipText, active && styles.chipTextActive]}>{p.label}</Text>
+                    <Text style={[styles.chipText, open && styles.chipTextActive]}>{f.label}</Text>
                   </Pressable>
                 )
               })}
             </View>
           </ScrollView>
+          <View style={styles.panel}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <View style={styles.tileRow}>
+                {FINISH_PRESETS.filter((p) => p.family === family).map((p) => {
+                  const active = finish?.family === p.family && finish?.preset === p.preset
+                  return (
+                    <Pressable
+                      key={p.preset}
+                      style={pressed(styles.tile)}
+                      onPress={() => pickPreset(p.family, p.preset)}
+                    >
+                      <View style={[styles.swatchWrap, active && styles.swatchWrapActive]}>
+                        <FinishSwatch preset={p} />
+                      </View>
+                      <Text
+                        style={[styles.tileLabel, active && styles.tileLabelActive]}
+                        numberOfLines={1}
+                      >
+                        {p.label}
+                      </Text>
+                    </Pressable>
+                  )
+                })}
+              </View>
+            </ScrollView>
+          </View>
         </View>
 
         {finish ? (
@@ -191,28 +195,58 @@ export function FinishEditor({ layerId, onClose }: Props) {
   )
 }
 
+const SWATCH = 54
+const SWATCH_VIEW: ViewState = { tiltX: 0.4, tiltY: -0.25, ...lightFromTilt(0.4, -0.25) }
+
+/** Live 54px render of a finish preset (the real shader at a fixed tilt). */
+function FinishSwatch({ preset }: { preset: FinishPreset }) {
+  const uniforms = useMemo(
+    () =>
+      buildFinishUniforms(makeFinish(preset.family, preset.preset), SWATCH_VIEW, {
+        w: SWATCH,
+        h: SWATCH,
+      }),
+    [preset],
+  )
+  return (
+    <Canvas style={{ width: SWATCH, height: SWATCH, backgroundColor: color.bg0 }}>
+      <Rect x={0} y={0} width={SWATCH} height={SWATCH}>
+        <Shader source={getFinishEffect(preset.family)} uniforms={uniforms} />
+      </Rect>
+    </Canvas>
+  )
+}
+
+const PANEL = color.bg2
+
 const styles = StyleSheet.create({
   chipRow: { flexDirection: 'row', gap: 8 },
   chip,
   chipActive,
   chipText,
   chipTextActive,
-  chipOpen: { backgroundColor: color.chipActive },
-  presetPanel: {
-    backgroundColor: color.track,
+  fxNav: { gap: 0 },
+  tabOpen: {
+    backgroundColor: PANEL,
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0,
+  },
+  panel: {
+    backgroundColor: PANEL,
     borderRadius: radius.lg,
     paddingVertical: 10,
-    gap: 8,
   },
-  presetHeader: {
-    color: color.textDim,
-    fontSize: type.xs,
-    fontWeight: '600',
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
-    paddingHorizontal: 12,
+  tileRow: { flexDirection: 'row', gap: 10, paddingHorizontal: 12 },
+  tile: { alignItems: 'center', gap: 4, width: SWATCH + 10 },
+  swatchWrap: {
+    borderRadius: radius.md,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: 'transparent',
   },
-  presetRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 12 },
+  swatchWrapActive: { borderColor: color.accent },
+  tileLabel: { color: color.textDim, fontSize: type.xs },
+  tileLabelActive: { color: color.text, fontWeight: '600' },
   paletteRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   paletteLabel: { color: color.textDim, fontSize: type.sm, marginRight: 4 },
   hint: { color: color.textGhost, fontSize: type.sm, textAlign: 'center', paddingVertical: 8 },
