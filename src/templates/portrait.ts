@@ -2,6 +2,7 @@ import type { CardDocument } from '../model/types'
 import { CARD_W, CARD_H, DEFAULT_CORNER_RADIUS } from '../model/types'
 import { makeFinish } from '../finishes/presets'
 import { backLayer as layer, makeStandardBack } from './backs'
+import { ARCH_FRAME } from '../presets/elements'
 
 // Template 2: Portrait (CLAUDE.md §8) — photo slot upper 70% with a
 // radial fade at the bottom, name bar, number badge, refractor border.
@@ -53,7 +54,14 @@ export function portraitCard(id: string, now = new Date().toISOString()): CardDo
           name: 'Name',
           type: 'text',
           transform: { x: CARD_W / 2, y: 890, rotation: 0, scaleX: 1, scaleY: 1 },
-          text: { content: 'YOUR NAME', font: 'anton', size: 64, color: '#0e2240', align: 'c' },
+          text: {
+            content: 'YOUR NAME',
+            font: 'anton',
+            size: 64,
+            color: '#0e2240',
+            align: 'c',
+            shadow: { color: '#00000060', dx: 0, dy: 3, blur: 5 },
+          },
         }),
         layer({
           id: 'badge',
@@ -76,22 +84,18 @@ export function portraitCard(id: string, now = new Date().toISOString()): CardDo
           transform: { x: CARD_W / 2, y: 990, rotation: 0, scaleX: 1, scaleY: 1 },
           text: { content: 'GUARD • ROOKIE', font: 'bebas', size: 40, color: '#c9d6ea', align: 'c' },
         }),
+        // arched refractor frame: a domed window over the portrait
         layer({
           id: 'border',
-          name: 'Foil border',
+          name: 'Arch frame',
           type: 'shape',
-          transform: { x: 18, y: 18, rotation: 0, scaleX: 1, scaleY: 1 },
-          shape: {
-            shapeId: 'square',
-            paint: { color: '#00000000' },
-            stroke: { color: '#ffffff', width: 14 },
-            w: CARD_W - 36,
-            h: CARD_H - 36,
-          },
+          transform: { x: 0, y: 0, rotation: 0, scaleX: 1, scaleY: 1 },
+          shape: { shapeId: ARCH_FRAME.id, paint: { color: '#ffffff' }, w: CARD_W, h: CARD_H },
           finish: makeFinish('spectrum', 'refractor', { intensity: 1 }),
         }),
       ],
     },
+    shapes: [ARCH_FRAME],
     back: makeStandardBack({
       bg: '#0e2240',
       panel: '#132f56',

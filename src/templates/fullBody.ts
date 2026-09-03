@@ -43,7 +43,15 @@ export function fullBodyCard(id: string, now = new Date().toISOString()): CardDo
           name: 'Name',
           type: 'text',
           transform: { x: CARD_W / 2, y: 950, rotation: 0, scaleX: 1, scaleY: 1 },
-          text: { content: 'YOUR NAME', font: 'anton', size: 88, color: '#eee1c6', align: 'c' },
+          text: {
+            content: 'YOUR NAME',
+            font: 'anton',
+            size: 88,
+            color: '#eee1c6',
+            align: 'c',
+            outline: { color: '#00471b', width: 6 },
+            shadow: { color: '#000000a0', dx: 0, dy: 5, blur: 9 },
+          },
           finish: makeFinish('metallic', 'gold', { intensity: 0.85 }),
         }),
         layer({

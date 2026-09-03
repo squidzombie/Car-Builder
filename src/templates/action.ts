@@ -38,7 +38,7 @@ export function actionCard(id: string, now = new Date().toISOString()): CardDocu
           type: 'shape',
           transform: { x: -160, y: 640, rotation: -24, scaleX: 1, scaleY: 1 },
           shape: { shapeId: 'square', paint: { color: '#98002e' }, w: 1200, h: 170 },
-          finish: makeFinish('spectrum', 'wave-refractor', { intensity: 0.6 }),
+          finish: makeFinish('geometric', 'checkerboard', { intensity: 0.7 }),
         }),
         layer({
           id: 'stripe-2',
@@ -68,7 +68,14 @@ export function actionCard(id: string, now = new Date().toISOString()): CardDocu
           name: 'Name',
           type: 'text',
           transform: { x: CARD_W / 2, y: 888, rotation: -3, scaleX: 1, scaleY: 1 },
-          text: { content: 'YOUR NAME', font: 'anton', size: 66, color: '#1c060e', align: 'c' },
+          text: {
+            content: 'YOUR NAME',
+            font: 'anton',
+            size: 66,
+            color: '#1c060e',
+            align: 'c',
+            shadow: { color: '#00000070', dx: 0, dy: 3, blur: 5 },
+          },
         }),
         layer({
           id: 'position',

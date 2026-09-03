@@ -149,7 +149,7 @@ const NOTCH_FRAME: Shape = {
   builtIn: false,
 }
 
-const ARCH_FRAME: Shape = {
+export const ARCH_FRAME: Shape = {
   id: 'frame-arch',
   name: 'Arch frame',
   fillRule: 'evenodd',

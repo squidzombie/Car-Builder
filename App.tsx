@@ -21,7 +21,8 @@ import { ConditionSheet } from './src/view/ConditionSheet'
 import { useDocImages } from './src/view/useDocImages'
 import { useBundledFonts } from './src/view/useBundledFonts'
 import { TEMPLATES } from './src/templates'
-import { EditorScreen } from './src/editor/EditorScreen'
+import { EditorScreen, type EditorIntent } from './src/editor/EditorScreen'
+import { injectPhoto } from './src/templates/photo'
 import { useEditor } from './src/state/useEditor'
 import { CardRenderer } from './src/renderer/CardRenderer'
 import { lightFromTilt, type CardDocument, type ViewState } from './src/model/types'
@@ -53,6 +54,7 @@ const webShareId =
 // auto-saves (debounced) and is restored on launch (M6 local save, §9).
 export default function App() {
   const [screen, setScreen] = useState<'preview' | 'edit'>('preview')
+  const [intent, setIntent] = useState<EditorIntent>(null)
   const [booted, setBooted] = useState(false)
   useBundledFonts()
 
@@ -104,15 +106,20 @@ export default function App() {
     <>
       <StatusBar style="light" />
       {screen === 'preview' ? (
-        <PreviewScreen onEdit={() => setScreen('edit')} />
+        <PreviewScreen
+          onEdit={(i) => {
+            setIntent(i ?? null)
+            setScreen('edit')
+          }}
+        />
       ) : (
-        <EditorScreen onPreview={() => setScreen('preview')} />
+        <EditorScreen intent={intent} onPreview={() => setScreen('preview')} />
       )}
     </>
   )
 }
 
-function PreviewScreen({ onEdit }: { onEdit: () => void }) {
+function PreviewScreen({ onEdit }: { onEdit: (intent?: EditorIntent) => void }) {
   const { width } = useWindowDimensions()
   const { tilt, panHandlers } = useTilt()
   const doc = useEditor((s) => s.doc)
@@ -194,7 +201,7 @@ function PreviewScreen({ onEdit }: { onEdit: () => void }) {
           <Feather name="edit-2" size={12} color={color.textFaint} />
         </Pressable>
         <View style={styles.buttonRow}>
-          <Pressable {...pressHaptic} style={pressed(styles.editButton, styles.primaryButton)} onPress={onEdit} hitSlop={6}>
+          <Pressable {...pressHaptic} style={pressed(styles.editButton, styles.primaryButton)} onPress={() => onEdit()} hitSlop={6}>
             <Text style={[styles.editButtonText, styles.primaryButtonText]}>Edit card</Text>
           </Pressable>
           <Pressable {...pressHaptic} style={pressed(styles.editButton)} onPress={() => setChoosing(true)} hitSlop={6}>
@@ -263,12 +270,15 @@ function PreviewScreen({ onEdit }: { onEdit: () => void }) {
       {choosing ? (
         <TemplateChooser
           onClose={() => setChoosing(false)}
-          onPick={(templateId) => {
+          onPick={(templateId, photo) => {
             const template = TEMPLATES.find((t) => t.id === templateId)
             if (template) {
-              useEditor.getState().loadDoc(template.make(`card-${Date.now().toString(36)}`))
+              let d = template.make(`card-${Date.now().toString(36)}`)
+              if (photo) d = injectPhoto(d, photo)
+              useEditor.getState().loadDoc(d)
               setChoosing(false)
-              onEdit()
+              // photo-first: land in the editor with the name ready to type
+              onEdit(photo ? 'name' : null)
             }
           }}
           onOpenSaved={(saved) => {

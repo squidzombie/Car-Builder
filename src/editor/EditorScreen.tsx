@@ -80,7 +80,16 @@ function rotateHandlePos(
 type CanvasView = { scale: number; x: number; y: number }
 type PickerTarget = 'layer' | 'draw' | 'stamp'
 
-export function EditorScreen({ onPreview }: { onPreview: () => void }) {
+/** What the editor should do on open: 'name' = select the name text and open its sheet. */
+export type EditorIntent = 'name' | null
+
+export function EditorScreen({
+  onPreview,
+  intent = null,
+}: {
+  onPreview: () => void
+  intent?: EditorIntent
+}) {
   const { width } = useWindowDimensions()
   const doc = useEditor((s) => s.doc)
   const side = useEditor((s) => s.side)
@@ -173,6 +182,21 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
       setCutoutState('idle')
     }
   }
+
+  // photo-first quick flow: open on the name, ready to type
+  useEffect(() => {
+    if (intent !== 'name') return
+    const s = useEditor.getState()
+    const layers = s.doc[s.side].layers
+    const name =
+      layers.find((l) => l.type === 'text' && /name/i.test(l.name)) ??
+      layers.find((l) => l.type === 'text')
+    if (name) {
+      s.select(name.id)
+      setTextOpen(true)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // (the finish-sheet tilt sweep lives inside EditorCanvas so its 60fps
   // state updates re-render only the canvas, not the whole screen)
