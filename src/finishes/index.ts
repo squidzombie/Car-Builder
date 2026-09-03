@@ -6,6 +6,7 @@ import { FLUID_SKSL } from './fluid.sksl'
 import { METALLIC_SKSL } from './metallic.sksl'
 import { SPARKLE_SKSL } from './sparkle.sksl'
 import { WEAR_SKSL } from './wear.sksl'
+import { BEVEL_SKSL } from './bevel.sksl'
 
 export { FINISH_PRESETS, getPreset, makeFinish } from './presets'
 export { buildFinishUniforms, buildWearUniforms } from './uniforms'
@@ -30,6 +31,18 @@ export function getFinishEffect(family: FinishFamily): SkRuntimeEffect {
     cache.set(family, eff)
   }
   return eff
+}
+
+let bevelEffect: SkRuntimeEffect | null = null
+
+/** Compile (once) and return the emboss bevel image-filter effect. */
+export function getBevelEffect(): SkRuntimeEffect {
+  if (!bevelEffect) {
+    const made = Skia.RuntimeEffect.Make(BEVEL_SKSL)
+    if (!made) throw new Error('failed to compile bevel shader')
+    bevelEffect = made
+  }
+  return bevelEffect
 }
 
 let wearEffect: SkRuntimeEffect | null = null

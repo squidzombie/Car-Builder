@@ -21,6 +21,11 @@ async function main() {
   // wiggle the mouse so the tilt engine gets input
   await page.mouse.move(360, 300)
   await new Promise((r) => setTimeout(r, 800))
+  // FLIP=1: tap the card to show its back before shooting
+  if (process.env.FLIP) {
+    await page.mouse.click(240, 420)
+    await new Promise((r) => setTimeout(r, 1500))
+  }
   const diag = await page.evaluate(() => {
     const canvases = [...document.querySelectorAll('canvas')]
     return {

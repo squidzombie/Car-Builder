@@ -7,6 +7,7 @@ import {
   Path,
   Rect,
   RoundedRect,
+  RuntimeShader,
   Image as SkiaImage,
   Text as SkiaText,
   Shader,
@@ -20,9 +21,13 @@ import {
 import type { CardDocument, Layer, Mask, ViewState } from '../model/types'
 import { getShape } from '../model/shapes'
 import { getTypeface } from './fonts'
-import { getFinishEffect, buildFinishUniforms, buildWearUniforms } from '../finishes'
+import {
+  getBevelEffect,
+  getFinishEffect,
+  buildFinishUniforms,
+  buildWearUniforms,
+} from '../finishes'
 import { getWearEffect } from '../finishes'
-import { BlendColor } from '@shopify/react-native-skia'
 import { strokePathFromPoints } from './strokePath'
 import { paintColor, PaintChildren } from './paintProps'
 
@@ -105,11 +110,11 @@ function LayerNode({
 
   if (!layerPaint) return content
 
-  // Emboss (Build 4): the content's silhouette drawn twice under itself,
-  // offset along the light direction — a highlight edge facing the light
-  // and a shadow edge away from it. Offsets follow the tilt, so raised
-  // ink visibly catches the light as the card moves.
-  let embossPasses: React.ReactNode = null
+  // Emboss: a soft rounded bevel lit by the virtual light, computed from
+  // the layer's own alpha slope inside its silhouette (bevel.sksl). The
+  // light follows the tilt, so raised ink visibly catches it as the card
+  // moves; inset is the same bevel with the light flipped.
+  let bevel: React.ReactNode = null
   if (layer.emboss) {
     let lx = (viewState.lightX - 0.5) * 2
     let ly = (viewState.lightY - 0.35) * 2
@@ -121,33 +126,19 @@ function LayerNode({
       lx /= len
       ly /= len
     }
-    const mag = 2.5 + layer.emboss.height * 7
-    const flip = layer.emboss.style === 'inset' ? -1 : 1
-    const hx = -lx * mag * flip
-    const hy = -ly * mag * flip
-    embossPasses = (
-      <>
-        <Group
-          transform={baseTransform(hx, hy)}
-          layer={
-            <Paint opacity={0.55} blendMode="screen">
-              <BlendColor color="#ffffff" mode="srcIn" />
-            </Paint>
-          }
-        >
-          <LayerContent layer={layer} doc={doc} assets={assets} />
-        </Group>
-        <Group
-          transform={baseTransform(-hx, -hy)}
-          layer={
-            <Paint opacity={0.5} blendMode="multiply">
-              <BlendColor color="#000000" mode="srcIn" />
-            </Paint>
-          }
-        >
-          <LayerContent layer={layer} doc={doc} assets={assets} />
-        </Group>
-      </>
+    const h = layer.emboss.height
+    bevel = (
+      <RuntimeShader
+        source={getBevelEffect()}
+        uniforms={{
+          // the shader wants the direction the light travels: away from
+          // the light source, i.e. the negated to-light vector
+          uLight: [-lx, -ly],
+          uRadius: 2 + h * 9,
+          uStrength: 0.55 + h * 0.45,
+          uFlip: layer.emboss.style === 'inset' ? -1 : 1,
+        }}
+      />
     )
   }
 
@@ -174,8 +165,7 @@ function LayerNode({
 
   return (
     <Group layer={layerPaint} clip={shapeClip}>
-      {embossPasses}
-      {content}
+      {bevel ? <Group layer={<Paint>{bevel}</Paint>}>{content}</Group> : content}
       {layer.finish ? <FinishPass layer={layer} doc={doc} viewState={viewState} /> : null}
       {layer.mask && layer.mask.type !== 'shape' ? (
         <MaskPass mask={layer.mask} w={w} h={h} assets={assets} shapes={doc.shapes} />

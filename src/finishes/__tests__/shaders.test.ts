@@ -11,6 +11,7 @@ import { FLUID_SKSL } from '../fluid.sksl'
 import { METALLIC_SKSL } from '../metallic.sksl'
 import { SPARKLE_SKSL } from '../sparkle.sksl'
 import { WEAR_SKSL } from '../wear.sksl'
+import { BEVEL_SKSL } from '../bevel.sksl'
 import { FINISH_PRESETS, getPreset, makeFinish } from '../presets'
 import { buildFinishUniforms, buildWearUniforms } from '../uniforms'
 
@@ -24,6 +25,7 @@ const SOURCES: [string, string][] = [
   ['metallic', METALLIC_SKSL],
   ['sparkle', SPARKLE_SKSL],
   ['wear', WEAR_SKSL],
+  ['bevel', BEVEL_SKSL],
 ]
 
 describe('finish shaders', () => {
