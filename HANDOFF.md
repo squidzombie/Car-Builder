@@ -1,4 +1,22 @@
-# Handoff — 2026-09-03 (later): perf pass, text styling, snapping, photo-first
+# Handoff — 2026-09-03 (latest): recentering fix, video export, adjust, reorder, saved cards
+
+- Tilt recentering rebuilt as REST DETECTION (tiltMath.ts): no drift
+  while moving, settles in ~1.1s tau once held still ≥500ms, fast
+  absorb when pinned past full tilt. Max verifies feel on device.
+- modules/video-export (Swift AVAssetWriter) + src/view/VideoExport.tsx:
+  3s/30fps seamless tilt loop → mp4 → share sheet. iOS builds only
+  (UNVERIFIED until the next TestFlight build; hidden in Expo Go).
+  Share button now opens a sheet: Image / Tilt video.
+- Photo adjust (ColorMatrix, adjust.ts) in Appearance → Adjust tab.
+- LayerPanel drag-to-reorder via row grips (moveLayerTo). ScrollView
+  replaced FlatList there.
+- Saved-card actions in the chooser (Open/Rename/Duplicate/Delete+confirm).
+- Photo-first hero: Max unsure → ROADMAP open question, left in place.
+Emulator gotcha: a BACK keyevent with no sheet open exits Expo Go.
+
+---
+
+# Earlier — 2026-09-03 (later): perf pass, text styling, snapping, photo-first
 
 Build e5186e60 (TestFlight run with the review-2 batch) FINISHED; Max
 submits. Then, per the agreed plan (1 perf → 2 designed-look → 3 photo
