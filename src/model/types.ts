@@ -90,6 +90,9 @@ export type Layer = {
     size: number
     color: Color
     align: 'l' | 'c' | 'r'
+    /** stroked outline behind the fill (sports-card names over photos) */
+    outline?: Stroke
+    shadow?: { color: Color; dx: number; dy: number; blur: number }
   }
 }
 

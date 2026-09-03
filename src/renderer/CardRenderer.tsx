@@ -9,6 +9,7 @@ import {
   Rect,
   RoundedRect,
   RuntimeShader,
+  Shadow,
   Image as SkiaImage,
   Text as SkiaText,
   Shader,
@@ -82,10 +83,27 @@ export function CardRenderer({ doc, side, viewState, assets, scale = 1 }: CardRe
       condition && condition.intensity > 0 ? buildWearUniforms(condition, REST_VIEW, doc.size) : null,
     [condition, doc.size],
   )
+  // captured as explicit fields: object spread of a captured object inside
+  // a worklet is not reliable on the UI runtime
+  const wSize = wearBase?.uSize ?? [w, h]
+  const wAmount = (wearBase?.uAmount as number) ?? 0
+  const wScratches = (wearBase?.uScratches as number) ?? 0
+  const wEdge = (wearBase?.uEdge as number) ?? 0
+  const wCorner = (wearBase?.uCorner as number) ?? 0
+  const wSeed = (wearBase?.uSeed as number) ?? 0
   const wearUniforms = useDerivedValue(() => {
     const v = sv.value
-    return { ...(wearBase ?? {}), uTilt: [v.tiltX, v.tiltY], uLight: [v.lightX, v.lightY] }
-  }, [wearBase])
+    return {
+      uSize: wSize,
+      uTilt: [v.tiltX, v.tiltY],
+      uLight: [v.lightX, v.lightY],
+      uAmount: wAmount,
+      uScratches: wScratches,
+      uEdge: wEdge,
+      uCorner: wCorner,
+      uSeed: wSeed,
+    }
+  }, [wSize, wAmount, wScratches, wEdge, wCorner, wSeed])
   return (
     <Group transform={[{ scale }]}>
       <Group clip={clip}>
@@ -233,9 +251,33 @@ function FinishPass({
         : finish
     return buildFinishUniforms(withPalette, REST_VIEW, size)
   }, [finish, pinned, size])
+  // captured as explicit fields (see wearUniforms)
+  const uSize = base.uSize
+  const uIntensity = base.uIntensity
+  const uScale = base.uScale
+  const uColorCount = base.uColorCount
+  const uColors = base.uColors
+  const uP0 = base.uP0
+  const uP1 = base.uP1
+  const uP2 = base.uP2
+  const uP3 = base.uP3
+  const uMode = base.uMode
   const uniforms = useDerivedValue(() => {
     const v = viewState.value
-    return { ...base, uTilt: [v.tiltX, v.tiltY], uLight: [v.lightX, v.lightY] }
+    return {
+      uSize,
+      uTilt: [v.tiltX, v.tiltY],
+      uLight: [v.lightX, v.lightY],
+      uIntensity,
+      uScale,
+      uColorCount,
+      uColors,
+      uP0,
+      uP1,
+      uP2,
+      uP3,
+      uMode,
+    }
   }, [base])
   return (
     <Rect x={0} y={0} width={doc.size.w} height={doc.size.h} blendMode="srcATop">
@@ -454,7 +496,34 @@ function LayerContent({
             : font.measureText(t.content).width
         x = t.align === 'c' ? -width / 2 : -width
       }
-      return <SkiaText x={x} y={0} text={t.content} font={font} color={t.color} />
+      // outline is a stroked pass behind the fill; the shadow hangs off
+      // whichever pass is the outer silhouette
+      const outline = t.outline && t.outline.width > 0 ? t.outline : undefined
+      const shadow = t.shadow ? (
+        <Shadow dx={t.shadow.dx} dy={t.shadow.dy} blur={t.shadow.blur} color={t.shadow.color} />
+      ) : null
+      return (
+        <>
+          {outline ? (
+            <SkiaText
+              x={x}
+              y={0}
+              text={t.content}
+              font={font}
+              color={outline.color}
+              style="stroke"
+              strokeWidth={outline.width}
+              strokeJoin="round"
+              strokeCap="round"
+            >
+              {shadow}
+            </SkiaText>
+          ) : null}
+          <SkiaText x={x} y={0} text={t.content} font={font} color={t.color}>
+            {outline ? null : shadow}
+          </SkiaText>
+        </>
+      )
     }
     default:
       return null

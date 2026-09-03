@@ -299,7 +299,36 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
   // ---- canvas gestures ----
   // All gesture state lives in refs — responder callbacks must not close
   // over stale render values. One responder session = one undo step.
-  const drag = useRef<{ id: string; startX: number; startY: number } | null>(null)
+  const drag = useRef<{
+    id: string
+    startX: number
+    startY: number
+    /** bounds center at drag start (doc space) */
+    cx: number
+    cy: number
+    /** alignment lines to snap to: card center + other layers' centers */
+    linesX: number[]
+    linesY: number[]
+  } | null>(null)
+  // snapping guides drawn while a drag is magnetized (doc-space lines)
+  const [guides, setGuides] = useState<{ v: number | null; h: number | null } | null>(null)
+  const guideRef = useRef<{ v: number | null; h: number | null } | null>(null)
+  const setGuideLines = (v: number | null, h: number | null) => {
+    const cur = guideRef.current
+    if (v === null && h === null) {
+      if (cur) {
+        guideRef.current = null
+        setGuides(null)
+      }
+      return
+    }
+    if (!cur || cur.v !== v || cur.h !== h) {
+      // a tick the moment a new line catches
+      if ((v !== null && cur?.v !== v) || (h !== null && cur?.h !== h)) tick()
+      guideRef.current = { v, h }
+      setGuides({ v, h })
+    }
+  }
   const resizeSession = useRef<{ id: string; start: ResizeStart } | null>(null)
   const rotateSession = useRef<{ id: string; start: RotateStart } | null>(null)
   const pinchStart = useRef<PinchStart | null>(null)
@@ -600,7 +629,23 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
             }
           }
           if (p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h) {
-            drag.current = { id: sel.id, startX: sel.transform.x, startY: sel.transform.y }
+            const linesX = [docW / 2]
+            const linesY = [docH / 2]
+            for (const other of s.doc[s.side].layers) {
+              if (other.id === sel.id || !other.visible || other.type === 'fill') continue
+              const ob = layerBounds(other, s.doc)
+              linesX.push(ob.x + ob.w / 2)
+              linesY.push(ob.y + ob.h / 2)
+            }
+            drag.current = {
+              id: sel.id,
+              startX: sel.transform.x,
+              startY: sel.transform.y,
+              cx: b.x + b.w / 2,
+              cy: b.y + b.h / 2,
+              linesX,
+              linesY,
+            }
             s.beginGesture()
             gestureStarted.current = true
           }
@@ -726,13 +771,39 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
         if (drag.current) {
           if (Math.abs(g.dx) <= TAP_SLOP && Math.abs(g.dy) <= TAP_SLOP) return
           const o = origin(viewRef.current)
-          const { id, startX, startY } = drag.current
+          const { id, startX, startY, cx, cy, linesX, linesY } = drag.current
+          let dx = g.dx / o.t
+          let dy = g.dy / o.t
+          // snapping: magnetize the layer's center to the card center or
+          // another layer's center when within a few screen px
+          const th = 8 / o.t
+          let snapV: number | null = null
+          let snapH: number | null = null
+          let best = th
+          for (const lx of linesX) {
+            const d = Math.abs(cx + dx - lx)
+            if (d < best) {
+              best = d
+              snapV = lx
+            }
+          }
+          if (snapV !== null) dx += snapV - (cx + dx)
+          best = th
+          for (const ly of linesY) {
+            const d = Math.abs(cy + dy - ly)
+            if (d < best) {
+              best = d
+              snapH = ly
+            }
+          }
+          if (snapH !== null) dy += snapH - (cy + dy)
+          setGuideLines(snapV, snapH)
           sessionTransformed.current = true
           s.updateLayer(
             id,
             (l) => {
-              l.transform.x = startX + g.dx / o.t
-              l.transform.y = startY + g.dy / o.t
+              l.transform.x = startX + dx
+              l.transform.y = startY + dy
             },
             { transient: true },
           )
@@ -755,6 +826,7 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
         }
         const pinched = pinchStart.current !== null || canvasPinch.current !== null
         drag.current = null
+        setGuideLines(null, null)
         resizeSession.current = null
         rotateSession.current = null
         pinchStart.current = null
@@ -781,6 +853,7 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
       },
       onPanResponderTerminate: () => {
         setLoupe(null)
+        setGuideLines(null, null)
         drag.current = null
         resizeSession.current = null
         rotateSession.current = null
@@ -923,6 +996,24 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
               >
                 <Text style={styles.zoomChipText}>{Math.round(view.scale * 100)}% ⤢</Text>
               </Pressable>
+            ) : null}
+            {guides?.v !== null && guides?.v !== undefined ? (
+              <View
+                pointerEvents="none"
+                style={[
+                  styles.guideV,
+                  { left: guides.v * total + originX, top: originY, height: docH * total },
+                ]}
+              />
+            ) : null}
+            {guides?.h !== null && guides?.h !== undefined ? (
+              <View
+                pointerEvents="none"
+                style={[
+                  styles.guideH,
+                  { top: guides.h * total + originY, left: originX, width: docW * total },
+                ]}
+              />
             ) : null}
             {loupe ? (
               <View
@@ -1237,6 +1328,8 @@ const styles = StyleSheet.create({
     backgroundColor: color.accent,
     opacity: 0.7,
   },
+  guideV: { position: 'absolute', width: 1, backgroundColor: color.accent, opacity: 0.85 },
+  guideH: { position: 'absolute', height: 1, backgroundColor: color.accent, opacity: 0.85 },
   loupe: { position: 'absolute', width: 54, alignItems: 'center', gap: 4 },
   loupeSwatch: {
     width: 54,

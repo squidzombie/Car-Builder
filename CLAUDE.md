@@ -56,7 +56,7 @@ type Layer = {
   shape?: { shapeId: string; fill: Color | Gradient; stroke?: Stroke }
   path?: { strokes: { points: Point[] }[]; stroke: Stroke }  // free draw; a session's strokes share one layer + style
   stamp?: { shapeId: string; instances: StampInstance[]; fill: Color | Gradient }
-  text?: { content: string; font: string; size: number; color: Color; align: 'l' | 'c' | 'r' }
+  text?: { content: string; font: string; size: number; color: Color; align: 'l' | 'c' | 'r'; outline?: Stroke; shadow?: { color: Color; dx: number; dy: number; blur: number } }
 }
 
 type StampInstance = { x: number; y: number; rotation: number; scale: number }
