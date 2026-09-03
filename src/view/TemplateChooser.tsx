@@ -1,5 +1,14 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native'
+import {
+  Alert,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+  useWindowDimensions,
+} from 'react-native'
 import * as ImagePicker from 'expo-image-picker'
 import { Feather } from '@expo/vector-icons'
 import { Canvas, Group } from '@shopify/react-native-skia'
@@ -7,7 +16,7 @@ import { CardRenderer } from '../renderer/CardRenderer'
 import { defaultViewState, type CardDocument } from '../model/types'
 import { TEMPLATES } from '../templates'
 import { injectPhoto, type PhotoPick } from '../templates/photo'
-import { deleteCard, listCardDocs, persistAsset } from '../model/storage'
+import { deleteCard, listCardDocs, persistAsset, saveCard } from '../model/storage'
 import { registerAsset, setAssetUri } from '../model/assets'
 import { cutoutAvailable, liftSubject } from '../native/subjectCutout'
 import { useDocImages } from './useDocImages'
@@ -50,6 +59,48 @@ export function TemplateChooser({ onPick, onOpenSaved, onClose }: Props) {
   useEffect(() => {
     listCardDocs().then(setSaved).catch(() => {})
   }, [])
+  // saved-card management: long-press a tile to get its actions
+  const [managing, setManaging] = useState<CardDocument | null>(null)
+  const [renameDraft, setRenameDraft] = useState<string | null>(null)
+
+  const title = (d: CardDocument) => d.meta.title ?? d.meta.templateId ?? 'Card'
+  const duplicateSaved = (d: CardDocument) => {
+    const now = new Date().toISOString()
+    const copy: CardDocument = {
+      ...d,
+      id: `card-${Date.now().toString(36)}`,
+      meta: { ...d.meta, title: `${title(d)} copy`, createdAt: now, updatedAt: now },
+    }
+    saveCard(copy).catch(() => {})
+    setSaved((s) => [copy, ...s])
+    setManaging(null)
+    tick()
+  }
+  const commitRename = () => {
+    if (!managing || renameDraft === null) return
+    const trimmed = renameDraft.trim()
+    if (trimmed) {
+      const updated: CardDocument = { ...managing, meta: { ...managing.meta, title: trimmed } }
+      saveCard(updated).catch(() => {})
+      setSaved((s) => s.map((d) => (d.id === updated.id ? updated : d)))
+      setManaging(updated)
+    }
+    setRenameDraft(null)
+  }
+  const confirmDelete = (d: CardDocument) => {
+    Alert.alert(`Delete "${title(d)}"?`, 'This cannot be undone.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: () => {
+          deleteCard(d.id).catch(() => {})
+          setSaved((s) => s.filter((x) => x.id !== d.id))
+          setManaging(null)
+        },
+      },
+    ])
+  }
 
   const pickPhoto = async () => {
     const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 1 })
@@ -132,22 +183,72 @@ export function TemplateChooser({ onPick, onOpenSaved, onClose }: Props) {
 
         {saved.length > 0 && !photo ? (
           <>
-            <Text style={styles.sectionTitle}>Your cards · hold to delete</Text>
+            <Text style={styles.sectionTitle}>Your cards · hold for options</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               <View style={styles.shelf}>
                 {saved.map((doc) => (
                   <SavedTile
                     key={doc.id}
                     doc={doc}
+                    managing={managing?.id === doc.id}
                     onOpen={() => onOpenSaved(doc)}
-                    onDelete={() => {
-                      deleteCard(doc.id).catch(() => {})
-                      setSaved((s) => s.filter((d) => d.id !== doc.id))
+                    onHold={() => {
+                      tick()
+                      setRenameDraft(null)
+                      setManaging(managing?.id === doc.id ? null : doc)
                     }}
                   />
                 ))}
               </View>
             </ScrollView>
+            {managing ? (
+              <View style={styles.manageBar}>
+                {renameDraft !== null ? (
+                  <TextInput
+                    style={styles.renameInput}
+                    value={renameDraft}
+                    onChangeText={setRenameDraft}
+                    onSubmitEditing={commitRename}
+                    onBlur={commitRename}
+                    placeholder="Card name"
+                    placeholderTextColor={color.textFaint}
+                    autoFocus
+                    selectTextOnFocus
+                  />
+                ) : (
+                  <>
+                    <Pressable
+                      {...pressHaptic}
+                      style={pressed(styles.chip)}
+                      onPress={() => onOpenSaved(managing)}
+                    >
+                      <Text style={styles.chipText}>Open</Text>
+                    </Pressable>
+                    <Pressable
+                      {...pressHaptic}
+                      style={pressed(styles.chip)}
+                      onPress={() => setRenameDraft(title(managing))}
+                    >
+                      <Text style={styles.chipText}>Rename</Text>
+                    </Pressable>
+                    <Pressable
+                      {...pressHaptic}
+                      style={pressed(styles.chip)}
+                      onPress={() => duplicateSaved(managing)}
+                    >
+                      <Text style={styles.chipText}>Duplicate</Text>
+                    </Pressable>
+                    <Pressable
+                      {...pressHaptic}
+                      style={pressed(styles.chip)}
+                      onPress={() => confirmDelete(managing)}
+                    >
+                      <Text style={[styles.chipText, { color: color.danger }]}>Delete</Text>
+                    </Pressable>
+                  </>
+                )}
+              </View>
+            ) : null}
           </>
         ) : null}
 
@@ -192,17 +293,21 @@ function TemplateTile({ name, doc, onPick }: { name: string; doc: CardDocument; 
 
 function SavedTile({
   doc,
+  managing,
   onOpen,
-  onDelete,
+  onHold,
 }: {
   doc: CardDocument
+  managing: boolean
   onOpen: () => void
-  onDelete: () => void
+  onHold: () => void
 }) {
   const assets = useDocImages(doc)
   return (
-    <Pressable {...pressHaptic} style={pressed(styles.tile)} onPress={onOpen} onLongPress={onDelete}>
-      <View style={[styles.tileCard, { width: MINI_W, height: MINI_H }]}>
+    <Pressable {...pressHaptic} style={pressed(styles.tile)} onPress={onOpen} onLongPress={onHold}>
+      <View
+        style={[styles.tileCard, { width: MINI_W, height: MINI_H }, managing && styles.tileManaging]}
+      >
         <Canvas style={{ width: MINI_W, height: MINI_H }}>
           <Group>
             <CardRenderer
@@ -267,6 +372,17 @@ const styles = StyleSheet.create({
     borderColor: color.hairlineBright,
   },
   tileLabel: { color: color.textMid, fontSize: type.md },
+  tileManaging: { borderColor: color.accent, borderWidth: 2 },
   hint: { color: color.textGhost, fontSize: type.xs, textAlign: 'center', paddingTop: 12 },
   shelf: { flexDirection: 'row', gap: 12, paddingVertical: 2, marginBottom: 12 },
+  manageBar: { flexDirection: 'row', gap: 8, alignItems: 'center', marginBottom: 14 },
+  renameInput: {
+    flex: 1,
+    color: color.text,
+    fontSize: type.base,
+    backgroundColor: color.chip,
+    borderRadius: radius.md,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+  },
 })

@@ -2,6 +2,7 @@ import React, { useEffect, useMemo } from 'react'
 import { Platform } from 'react-native'
 import { useDerivedValue, useSharedValue, type SharedValue } from 'react-native-reanimated'
 import {
+  ColorMatrix,
   FillType,
   Group,
   Paint,
@@ -31,6 +32,7 @@ import {
 } from '../finishes'
 import { getWearEffect } from '../finishes'
 import { strokePathFromPoints } from './strokePath'
+import { adjustMatrix } from './adjust'
 import { paintColor, PaintChildren } from './paintProps'
 
 /**
@@ -391,12 +393,16 @@ function LayerContent({
       )
     }
     case 'image': {
-      const { assetId, w: iw, h: ih } = layer.image!
+      const { assetId, w: iw, h: ih, adjust } = layer.image!
       const img = assets?.[assetId]
       if (!img) {
         return <Rect x={0} y={0} width={iw} height={ih} color="#c9c4bb" />
       }
-      return <SkiaImage image={img} x={0} y={0} width={iw} height={ih} fit="cover" />
+      return (
+        <SkiaImage image={img} x={0} y={0} width={iw} height={ih} fit="cover">
+          {adjust ? <ColorMatrix matrix={adjustMatrix(adjust)} /> : null}
+        </SkiaImage>
+      )
     }
     case 'shape': {
       const s = layer.shape!

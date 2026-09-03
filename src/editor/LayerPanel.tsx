@@ -1,14 +1,15 @@
-import React, { useState } from 'react'
-import { FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
+import React, { useMemo, useRef, useState } from 'react'
+import { PanResponder, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native'
 import { Feather } from '@expo/vector-icons'
 import type { Layer } from '../model/types'
 import { useEditor } from '../state/useEditor'
 import { color, pressed, raised, type } from './theme'
-import { pressHaptic } from '../view/haptics'
+import { pressHaptic, tick } from '../view/haptics'
 
 // Bottom layer panel (CLAUDE.md §4): select / reorder / rename / lock /
-// hide / duplicate / delete. Top layer listed first. Adding goes through
-// the sectioned AddSheet (Build 3) via onAddPress.
+// hide / duplicate / delete. Top layer listed first. Reorder by dragging
+// the grip on the right of a row (the chevrons remain for one-step
+// nudges). Adding goes through the sectioned AddSheet via onAddPress.
 
 type FeatherName = React.ComponentProps<typeof Feather>['name']
 
@@ -20,6 +21,8 @@ const TYPE_ICON: Record<Layer['type'], FeatherName> = {
   stamp: 'star',
   text: 'type',
 }
+
+const ROW_H = 44
 
 export function LayerPanel({ onAddPress }: { onAddPress: () => void }) {
   const layers = useEditor((s) => s.doc[s.side].layers)
@@ -33,8 +36,14 @@ export function LayerPanel({ onAddPress }: { onAddPress: () => void }) {
 
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [draftName, setDraftName] = useState('')
+  // drag-to-reorder: which panel row is lifted and how far it has moved
+  const [drag, setDrag] = useState<{ index: number; dy: number } | null>(null)
 
   const topFirst = [...layers].reverse()
+  const n = topFirst.length
+  const dropIndex = drag
+    ? Math.max(0, Math.min(n - 1, Math.round(drag.index + drag.dy / ROW_H)))
+    : -1
 
   const commitRename = () => {
     if (renamingId) renameLayer(renamingId, draftName)
@@ -50,16 +59,22 @@ export function LayerPanel({ onAddPress }: { onAddPress: () => void }) {
         </Pressable>
       </View>
 
-      <FlatList
-        data={topFirst}
-        keyExtractor={(l) => l.id}
-        ListEmptyComponent={
-          <Text style={styles.empty}>No layers yet — tap + to add one</Text>
-        }
-        renderItem={({ item: layer }) => {
+      <ScrollView scrollEnabled={!drag} showsVerticalScrollIndicator={false}>
+        {n === 0 ? <Text style={styles.empty}>No layers yet — tap + to add one</Text> : null}
+        {topFirst.map((layer, index) => {
           const selected = layer.id === selectedId
+          const lifted = drag?.index === index
           return (
-            <View style={[styles.row, selected && styles.rowSelected]}>
+            <View
+              key={layer.id}
+              style={[
+                styles.row,
+                selected && styles.rowSelected,
+                lifted && styles.rowLifted,
+                lifted && drag ? { transform: [{ translateY: drag.dy }] } : null,
+                drag && !lifted && dropIndex === index && styles.rowDropTarget,
+              ]}
+            >
               {selected ? <View style={styles.selectedBar} /> : null}
               <Pressable
                 style={styles.rowMain}
@@ -123,11 +138,60 @@ export function LayerPanel({ onAddPress }: { onAddPress: () => void }) {
                   </Pressable>
                 </View>
               ) : null}
+
+              <DragGrip
+                index={index}
+                onMove={(dy) => setDrag({ index, dy })}
+                onEnd={(dy) => {
+                  const to = Math.max(0, Math.min(n - 1, Math.round(index + dy / ROW_H)))
+                  setDrag(null)
+                  // panel is top-first; the store's array is bottom-first
+                  if (to !== index) useEditor.getState().moveLayerTo(layer.id, n - 1 - to)
+                }}
+                onCancel={() => setDrag(null)}
+              />
             </View>
           )
-        }}
-      />
-      <Text style={styles.hintText}>Long-press a layer to rename</Text>
+        })}
+      </ScrollView>
+      <Text style={styles.hintText}>Long-press a layer to rename · drag ≡ to reorder</Text>
+    </View>
+  )
+}
+
+/** The reorder handle: owns its touch so the list doesn't scroll under it. */
+function DragGrip({
+  index,
+  onMove,
+  onEnd,
+  onCancel,
+}: {
+  index: number
+  onMove: (dy: number) => void
+  onEnd: (dy: number) => void
+  onCancel: () => void
+}) {
+  const cb = useRef({ onMove, onEnd, onCancel })
+  cb.current = { onMove, onEnd, onCancel }
+  const pan = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponder: () => true,
+        onPanResponderGrant: () => {
+          tick()
+          cb.current.onMove(0)
+        },
+        onPanResponderMove: (_e, g) => cb.current.onMove(g.dy),
+        onPanResponderRelease: (_e, g) => cb.current.onEnd(g.dy),
+        onPanResponderTerminate: () => cb.current.onCancel(),
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [index],
+  )
+  return (
+    <View {...pan.panHandlers} style={styles.grip} hitSlop={6}>
+      <Feather name="menu" size={15} color={color.textFaint} />
     </View>
   )
 }
@@ -177,10 +241,13 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    minHeight: 44,
-    paddingHorizontal: 12,
+    height: ROW_H,
+    paddingLeft: 12,
+    paddingRight: 6,
   },
   rowSelected: { backgroundColor: color.rowSelected },
+  rowLifted: { backgroundColor: color.chipActive, zIndex: 10, elevation: 6, ...raised },
+  rowDropTarget: { borderTopWidth: 2, borderTopColor: color.accent },
   selectedBar: {
     position: 'absolute',
     left: 0,
@@ -215,6 +282,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  grip: { width: 32, height: ROW_H, alignItems: 'center', justifyContent: 'center' },
   actions: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   hintText: { color: color.textGhost, fontSize: type.xs, textAlign: 'center', paddingTop: 6 },
 })

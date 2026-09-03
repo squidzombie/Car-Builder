@@ -41,6 +41,8 @@ import { shareConfigured } from './src/model/shareConfig'
 import { uploadCard } from './src/model/shareApi'
 import { Sheet } from './src/editor/Sheet'
 import { pressHaptic } from './src/view/haptics'
+import { VideoExport } from './src/view/VideoExport'
+import { videoExportAvailable } from './src/native/videoExport'
 import { color, pressed, raised, type as t } from './src/editor/theme'
 
 // On web the app IS the share viewer: /c/{id} renders a card read-only.
@@ -130,6 +132,9 @@ function PreviewScreen({ onEdit }: { onEdit: (intent?: EditorIntent) => void }) 
   const [welcome, setWelcome] = useState(false)
   const [draftTitle, setDraftTitle] = useState('')
   const [exportSide, setExportSide] = useState<'front' | 'back' | null>(null)
+  const [shareOpen, setShareOpen] = useState(false)
+  const [videoSide, setVideoSide] = useState<'front' | 'back' | null>(null)
+  const [videoProgress, setVideoProgress] = useState(0)
   const [linking, setLinking] = useState(false)
   const shownSide = useRef<'front' | 'back'>('front')
 
@@ -207,14 +212,19 @@ function PreviewScreen({ onEdit }: { onEdit: (intent?: EditorIntent) => void }) 
           <Pressable {...pressHaptic} style={pressed(styles.editButton)} onPress={() => setChoosing(true)} hitSlop={6}>
             <Text style={styles.editButtonText}>New</Text>
           </Pressable>
-          <Pressable {...pressHaptic}
+          <Pressable
+            {...pressHaptic}
             style={pressed(styles.editButton)}
             hitSlop={6}
-            disabled={exportSide !== null}
-            onPress={() => setExportSide(shownSide.current)}
+            disabled={exportSide !== null || videoSide !== null}
+            onPress={() => setShareOpen(true)}
           >
             <Text style={styles.editButtonText}>
-              {exportSide ? 'Exporting…' : 'Share'}
+              {exportSide
+                ? 'Exporting…'
+                : videoSide
+                  ? `Video ${Math.round(videoProgress * 100)}%`
+                  : 'Share'}
             </Text>
           </Pressable>
           {shareConfigured() ? (
@@ -252,6 +262,53 @@ function PreviewScreen({ onEdit }: { onEdit: (intent?: EditorIntent) => void }) 
             <Text style={styles.welcomeButtonText}>Start creating</Text>
           </Pressable>
         </Sheet>
+      ) : null}
+      {shareOpen ? (
+        <Sheet title="Share" onClose={() => setShareOpen(false)} closeLabel="Cancel" backdrop>
+          <Pressable
+            {...pressHaptic}
+            style={pressed(styles.shareRow)}
+            onPress={() => {
+              setShareOpen(false)
+              setExportSide(shownSide.current)
+            }}
+          >
+            <Feather name="image" size={18} color={color.accent} />
+            <View style={styles.shareRowText}>
+              <Text style={styles.shareRowTitle}>Image</Text>
+              <Text style={styles.shareRowSub}>This side as a PNG at the hero tilt</Text>
+            </View>
+          </Pressable>
+          {videoExportAvailable() ? (
+            <Pressable
+              {...pressHaptic}
+              style={pressed(styles.shareRow)}
+              onPress={() => {
+                setShareOpen(false)
+                setVideoProgress(0)
+                setVideoSide(shownSide.current)
+              }}
+            >
+              <Feather name="video" size={18} color={color.accent} />
+              <View style={styles.shareRowText}>
+                <Text style={styles.shareRowTitle}>Tilt video</Text>
+                <Text style={styles.shareRowSub}>3-second looping shimmer, ready for social</Text>
+              </View>
+            </Pressable>
+          ) : null}
+        </Sheet>
+      ) : null}
+      {videoSide ? (
+        <VideoExport
+          doc={doc}
+          side={videoSide}
+          assets={assets}
+          onProgress={setVideoProgress}
+          onDone={() => {
+            setVideoSide(null)
+            setVideoProgress(0)
+          }}
+        />
       ) : null}
       {renaming ? (
         <Sheet title="Card name" onClose={commitTitle} backdrop>
@@ -390,6 +447,19 @@ const styles = StyleSheet.create({
   primaryButtonText: { color: color.onAccent, fontWeight: '700' },
   hint: { color: color.textFaint, fontSize: t.sm },
   welcomeRow: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 4 },
+  shareRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    backgroundColor: color.chip,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    ...raised,
+  },
+  shareRowText: { flex: 1, gap: 2 },
+  shareRowTitle: { color: color.text, fontSize: t.base, fontWeight: '600' },
+  shareRowSub: { color: color.textDim, fontSize: t.sm },
   welcomeText: { color: color.textMid, fontSize: t.base, flexShrink: 1, lineHeight: 20 },
   welcomeButton: {
     marginTop: 6,

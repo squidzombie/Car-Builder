@@ -132,8 +132,12 @@ per-screen tweaks.
   (ImageAnalysisInteraction) still possible later.
 - DONE 2026-09-01: M7 onboarding (one-time "Make it shine" welcome
   sheet over the tilting demo card, flag in the state file).
-- M7 remainder: perf pass (Reanimated shared-value tilt if needed),
-  store assets, empty states.
+- M7 remainder: store assets, empty states. (Perf pass DONE 2026-09-03:
+  UI-thread tilt via shared values, 59 fps while tilting.)
+- OPEN QUESTION (Max, 2026-09-03): the photo-first "Start with a photo"
+  hero in the New-card chooser — built and working, but Max isn't sure
+  about it. Evaluate after friends' feedback; trivial to demote to a
+  secondary option or remove (TemplateChooser hero + App onPick intent).
 - M7 VISUAL MODERNIZATION PASS (Max 2026-09-02: "whole UI feels a bit
   dated — not functionality, just visually"). Direction from the
   approved FX picker v3: one-surface containment over faked joins,

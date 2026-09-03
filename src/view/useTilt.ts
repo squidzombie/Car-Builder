@@ -5,7 +5,14 @@ import { DeviceMotion } from 'expo-sensors'
 import type { ViewState } from '../model/types'
 import { lightFromTilt } from '../model/types'
 
-import { GYRO_RANGE, applyDeadZone, clamp, nextBaseline } from './tiltMath'
+import {
+  GYRO_RANGE,
+  applyDeadZone,
+  clamp,
+  initialBaseline,
+  nextBaseline,
+  type Baseline,
+} from './tiltMath'
 
 const SMOOTHING = 0.18 // lerp factor per frame
 const DRAG_RANGE = 120 // px of finger travel mapped to full tilt
@@ -34,7 +41,7 @@ export function useTilt(): {
   const gyroTarget = useRef({ x: 0, y: 0 })
   const dragging = useRef(false)
   const grabbed = useRef({ x: 0, y: 0 })
-  const baseline = useRef<{ beta: number; gamma: number } | null>(null)
+  const baseline = useRef<Baseline | null>(null)
 
   // smoothing loop: one tiny JS callback per frame that only touches the
   // shared value — no state, no reconciliation
@@ -62,9 +69,10 @@ export function useTilt(): {
       const rot = m.rotation
       if (!rot) return
       // First reading becomes the neutral pose so the card rests flat however
-      // the user is holding the phone; afterwards the baseline slowly drifts
-      // toward the current pose so it can never get stuck skewed.
-      if (!baseline.current) baseline.current = { beta: rot.beta, gamma: rot.gamma }
+      // the user is holding the phone; afterwards the neutral pose settles
+      // onto whatever pose the phone is held STILL in (tiltMath) — never
+      // stuck skewed, never fighting a deliberate tilt.
+      if (!baseline.current) baseline.current = initialBaseline(rot)
       const dx = (rot.gamma - baseline.current.gamma) / GYRO_RANGE
       const dy = (rot.beta - baseline.current.beta) / GYRO_RANGE
       baseline.current = nextBaseline(

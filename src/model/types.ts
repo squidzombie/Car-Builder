@@ -79,7 +79,14 @@ export type Layer = {
   emboss?: { height: number; style: 'raised' | 'inset' }
   // type-specific payloads:
   fill?: { paint: Paint }
-  image?: { assetId: string; cutout: 'none' | 'subject' | 'manual'; w: number; h: number }
+  image?: {
+    assetId: string
+    cutout: 'none' | 'subject' | 'manual'
+    w: number
+    h: number
+    /** photo adjustments: brightness/contrast -0.5..0.5, saturation 0..2 (1 = as shot) */
+    adjust?: { brightness: number; contrast: number; saturation: number }
+  }
   shape?: { shapeId: string; paint: Paint; stroke?: Stroke; w: number; h: number }
   // free draw: a draw session's strokes accumulate here, sharing one style
   path?: { strokes: { points: Point[] }[]; stroke: Stroke }

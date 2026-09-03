@@ -52,6 +52,8 @@ export type EditorState = {
   duplicateLayer: (id: string) => void
   /** Move a layer within the stack; dir +1 = toward the top (end of array). */
   moveLayer: (id: string, dir: 1 | -1) => void
+  /** Move a layer to an absolute index in the side's array (drag-to-reorder). */
+  moveLayerTo: (id: string, toIndex: number) => void
   renameLayer: (id: string, name: string) => void
   setLayerProps: (
     id: string,
@@ -203,6 +205,18 @@ export function createEditorStore(initialDoc: CardDocument) {
           if (i < 0 || j < 0 || j >= layers.length) return
           const [layer] = layers.splice(i, 1)
           layers.splice(j, 0, layer)
+        })
+      },
+
+      moveLayerTo: (id, toIndex) => {
+        const layers = get().doc[get().side].layers
+        const i = layers.findIndex((l) => l.id === id)
+        const target = Math.max(0, Math.min(layers.length - 1, Math.round(toIndex)))
+        if (i < 0 || target === i) return
+        apply((doc) => {
+          const arr = doc[get().side].layers
+          const [layer] = arr.splice(i, 1)
+          arr.splice(target, 0, layer)
         })
       },
 

@@ -52,7 +52,7 @@ type Layer = {
   finish?: Finish                      // optional foil — see §5
   // type-specific:
   fill?: { color: Color | Gradient }
-  image?: { assetId: string; cutout?: 'none' | 'subject' | 'manual' }
+  image?: { assetId: string; cutout?: 'none' | 'subject' | 'manual'; adjust?: { brightness: number; contrast: number; saturation: number } }
   shape?: { shapeId: string; fill: Color | Gradient; stroke?: Stroke }
   path?: { strokes: { points: Point[] }[]; stroke: Stroke }  // free draw; a session's strokes share one layer + style
   stamp?: { shapeId: string; instances: StampInstance[]; fill: Color | Gradient }
