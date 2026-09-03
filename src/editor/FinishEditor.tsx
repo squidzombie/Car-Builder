@@ -7,15 +7,14 @@ import { getFinishEffect } from '../finishes'
 import { buildFinishUniforms } from '../finishes/uniforms'
 import { useEditor } from '../state/useEditor'
 import { MiniSlider } from './MiniSlider'
-import { Sheet } from './Sheet'
 import { chip, chipActive, chipText, chipTextActive, color, pressed, radius, raised, type } from './theme'
 import { pressHaptic } from '../view/haptics'
 
-// Finish picker (M4, CLAUDE.md §5): per-layer family + preset, intensity
-// and pattern scale, and the palette mode — 'custom' feeds the card's
-// pinned swatches into the holo shader (§6), so any finish recolors to
-// match the card. The editor canvas sweeps its tilt while this sheet is
-// open, so the finish shimmers live as you tune it.
+// Finish + Surface sections of the Appearance sheet (M4, CLAUDE.md §5):
+// per-layer family + preset, intensity and pattern scale, palette mode
+// ('custom' feeds the card's pinned swatches into the holo shader, §6),
+// and the emboss surface. The editor canvas sweeps its tilt while these
+// are open, so the finish shimmers live as you tune it.
 
 const FAMILIES: { key: FinishFamily; label: string }[] = [
   { key: 'spectrum', label: 'Spectrum' },
@@ -25,18 +24,16 @@ const FAMILIES: { key: FinishFamily; label: string }[] = [
   { key: 'sparkle', label: 'Sparkle' },
 ]
 
-type Props = { layerId: string; onClose: () => void }
+const usePatch = (layerId: string) => (fn: (l: Layer) => void, transient = false) =>
+  useEditor.getState().updateLayer(layerId, fn, { transient })
 
-export function FinishEditor({ layerId, onClose }: Props) {
+export function FinishSection({ layerId }: { layerId: string }) {
   const side = useEditor((s) => s.side)
   const layer = useEditor((s) => s.doc[side].layers.find((l) => l.id === layerId))
   const [family, setFamily] = useState<FinishFamily>(layer?.finish?.family ?? 'spectrum')
+  const patch = usePatch(layerId)
   if (!layer) return null
   const finish = layer.finish
-
-  const patch = (fn: (l: Layer) => void, transient = false) => {
-    useEditor.getState().updateLayer(layerId, fn, { transient })
-  }
 
   const pickPreset = (fam: FinishFamily, preset: string) => {
     patch((l) => {
@@ -48,150 +45,163 @@ export function FinishEditor({ layerId, onClose }: Props) {
   }
 
   return (
-    <Sheet title={`Finish · ${layer.name}`} onClose={onClose}>
+    <>
       {/* One surface for the whole picker: the family strip and its
           presets live inside the same panel, so the selection and its
           options are genuinely connected — no seam at any scroll
           position. The open family is a filled pill on that surface. */}
       <View style={styles.panel}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            <View style={styles.famRow}>
-              <Pressable {...pressHaptic}
-                style={pressed(styles.famChip, !finish && styles.famChipActive)}
-                onPress={() => patch((l) => (l.finish = undefined))}
-              >
-                <Text style={[styles.famText, !finish && styles.famTextActive]}>None</Text>
-              </Pressable>
-              {FAMILIES.map((f) => {
-                const open = family === f.key
-                return (
-                  <Pressable {...pressHaptic}
-                    key={f.key}
-                    style={pressed(styles.famChip, open && styles.famChipActive)}
-                    onPress={() => setFamily(f.key)}
-                  >
-                    <Text style={[styles.famText, open && styles.famTextActive]}>{f.label}</Text>
-                  </Pressable>
-                )
-              })}
-            </View>
-          </ScrollView>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            <View style={styles.tileRow}>
-              {FINISH_PRESETS.filter((p) => p.family === family).map((p) => {
-                const active = finish?.family === p.family && finish?.preset === p.preset
-                return (
-                  <Pressable {...pressHaptic}
-                    key={p.preset}
-                    style={pressed(styles.tile)}
-                    onPress={() => pickPreset(p.family, p.preset)}
-                  >
-                    <View style={[styles.swatchWrap, active && styles.swatchWrapActive]}>
-                      <FinishSwatch preset={p} />
-                    </View>
-                    <Text
-                      style={[styles.tileLabel, active && styles.tileLabelActive]}
-                      numberOfLines={1}
-                    >
-                      {p.label}
-                    </Text>
-                  </Pressable>
-                )
-              })}
-            </View>
-          </ScrollView>
-        </View>
-
-        {finish ? (
-          <>
-            <MiniSlider
-              label={`Intensity · ${finish.intensity.toFixed(2)}`}
-              value={finish.intensity}
-              min={0.1}
-              max={1}
-              onBegin={() => useEditor.getState().beginGesture()}
-              onChange={(v) => patch((l) => void (l.finish && (l.finish.intensity = v)), true)}
-            />
-            <MiniSlider
-              label={`Pattern scale · ${finish.scale.toFixed(2)}`}
-              value={finish.scale}
-              min={0.4}
-              max={2.5}
-              onBegin={() => useEditor.getState().beginGesture()}
-              onChange={(v) => patch((l) => void (l.finish && (l.finish.scale = v)), true)}
-            />
-            <View style={styles.paletteRow}>
-              <Text style={styles.paletteLabel}>Colors</Text>
-              {(
-                [
-                  ['rainbow', 'Rainbow'],
-                  ['custom', 'Card palette'],
-                ] as const
-              ).map(([mode, label]) => (
-                <Pressable {...pressHaptic}
-                  key={mode}
-                  style={[styles.chip, finish.paletteMode === mode && styles.chipActive]}
-                  onPress={() =>
-                    patch((l) => {
-                      if (l.finish) {
-                        l.finish.paletteMode = mode
-                        l.finish.customColors = undefined
-                      }
-                    })
-                  }
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          <View style={styles.famRow}>
+            <Pressable
+              {...pressHaptic}
+              style={pressed(styles.famChip, !finish && styles.famChipActive)}
+              onPress={() => patch((l) => (l.finish = undefined))}
+            >
+              <Text style={[styles.famText, !finish && styles.famTextActive]}>None</Text>
+            </Pressable>
+            {FAMILIES.map((f) => {
+              const open = family === f.key
+              return (
+                <Pressable
+                  {...pressHaptic}
+                  key={f.key}
+                  style={pressed(styles.famChip, open && styles.famChipActive)}
+                  onPress={() => setFamily(f.key)}
                 >
+                  <Text style={[styles.famText, open && styles.famTextActive]}>{f.label}</Text>
+                </Pressable>
+              )
+            })}
+          </View>
+        </ScrollView>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          <View style={styles.tileRow}>
+            {FINISH_PRESETS.filter((p) => p.family === family).map((p) => {
+              const active = finish?.family === p.family && finish?.preset === p.preset
+              return (
+                <Pressable
+                  {...pressHaptic}
+                  key={p.preset}
+                  style={pressed(styles.tile)}
+                  onPress={() => pickPreset(p.family, p.preset)}
+                >
+                  <View style={[styles.swatchWrap, active && styles.swatchWrapActive]}>
+                    <FinishSwatch preset={p} />
+                  </View>
                   <Text
-                    style={[styles.chipText, finish.paletteMode === mode && styles.chipTextActive]}
+                    style={[styles.tileLabel, active && styles.tileLabelActive]}
+                    numberOfLines={1}
                   >
-                    {label}
+                    {p.label}
                   </Text>
                 </Pressable>
-              ))}
-            </View>
-          </>
-        ) : (
-          <Text style={styles.hint}>Pick a preset to give this layer a holo finish</Text>
-        )}
+              )
+            })}
+          </View>
+        </ScrollView>
+      </View>
 
-        <View style={styles.paletteRow}>
-          <Text style={styles.paletteLabel}>Surface</Text>
-          {(
-            [
-              ['flat', 'Flat'],
-              ['raised', 'Raised'],
-              ['inset', 'Inset'],
-            ] as const
-          ).map(([key, label]) => {
-            const active = key === 'flat' ? !layer.emboss : layer.emboss?.style === key
-            return (
-              <Pressable {...pressHaptic}
-                key={key}
-                style={[styles.chip, active && styles.chipActive]}
-                onPress={() =>
-                  patch((l) => {
-                    l.emboss =
-                      key === 'flat'
-                        ? undefined
-                        : { height: l.emboss?.height ?? 0.5, style: key }
-                  })
-                }
-              >
-                <Text style={[styles.chipText, active && styles.chipTextActive]}>{label}</Text>
-              </Pressable>
-            )
-          })}
-        </View>
-        {layer.emboss ? (
+      {finish ? (
+        <>
           <MiniSlider
-            label={`Depth · ${layer.emboss.height.toFixed(2)}`}
-            value={layer.emboss.height}
+            label={`Intensity · ${finish.intensity.toFixed(2)}`}
+            value={finish.intensity}
             min={0.1}
             max={1}
             onBegin={() => useEditor.getState().beginGesture()}
-            onChange={(v) => patch((l) => void (l.emboss && (l.emboss.height = v)), true)}
+            onChange={(v) => patch((l) => void (l.finish && (l.finish.intensity = v)), true)}
           />
-        ) : null}
-    </Sheet>
+          <MiniSlider
+            label={`Pattern scale · ${finish.scale.toFixed(2)}`}
+            value={finish.scale}
+            min={0.4}
+            max={2.5}
+            onBegin={() => useEditor.getState().beginGesture()}
+            onChange={(v) => patch((l) => void (l.finish && (l.finish.scale = v)), true)}
+          />
+          <View style={styles.row}>
+            <Text style={styles.rowLabel}>Colors</Text>
+            {(
+              [
+                ['rainbow', 'Rainbow'],
+                ['custom', 'Card palette'],
+              ] as const
+            ).map(([mode, label]) => (
+              <Pressable
+                {...pressHaptic}
+                key={mode}
+                style={pressed(styles.chip, finish.paletteMode === mode && styles.chipActive)}
+                onPress={() =>
+                  patch((l) => {
+                    if (l.finish) {
+                      l.finish.paletteMode = mode
+                      l.finish.customColors = undefined
+                    }
+                  })
+                }
+              >
+                <Text style={[styles.chipText, finish.paletteMode === mode && styles.chipTextActive]}>
+                  {label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </>
+      ) : (
+        <Text style={styles.hint}>Pick a pattern to give this layer a holo finish</Text>
+      )}
+    </>
+  )
+}
+
+export function SurfaceSection({ layerId }: { layerId: string }) {
+  const side = useEditor((s) => s.side)
+  const layer = useEditor((s) => s.doc[side].layers.find((l) => l.id === layerId))
+  const patch = usePatch(layerId)
+  if (!layer) return null
+  return (
+    <>
+      <View style={styles.row}>
+        <Text style={styles.rowLabel}>Surface</Text>
+        {(
+          [
+            ['flat', 'Flat'],
+            ['raised', 'Raised'],
+            ['inset', 'Inset'],
+          ] as const
+        ).map(([key, label]) => {
+          const active = key === 'flat' ? !layer.emboss : layer.emboss?.style === key
+          return (
+            <Pressable
+              {...pressHaptic}
+              key={key}
+              style={pressed(styles.chip, active && styles.chipActive)}
+              onPress={() =>
+                patch((l) => {
+                  l.emboss =
+                    key === 'flat' ? undefined : { height: l.emboss?.height ?? 0.5, style: key }
+                })
+              }
+            >
+              <Text style={[styles.chipText, active && styles.chipTextActive]}>{label}</Text>
+            </Pressable>
+          )
+        })}
+      </View>
+      {layer.emboss ? (
+        <MiniSlider
+          label={`Depth · ${layer.emboss.height.toFixed(2)}`}
+          value={layer.emboss.height}
+          min={0.1}
+          max={1}
+          onBegin={() => useEditor.getState().beginGesture()}
+          onChange={(v) => patch((l) => void (l.emboss && (l.emboss.height = v)), true)}
+        />
+      ) : (
+        <Text style={styles.hint}>Raised ink catches the light as the card tilts</Text>
+      )}
+    </>
   )
 }
 
@@ -220,7 +230,6 @@ function FinishSwatch({ preset }: { preset: FinishPreset }) {
 const PANEL = color.bg2
 
 const styles = StyleSheet.create({
-  chipRow: { flexDirection: 'row', gap: 8 },
   chip,
   chipActive,
   chipText,
@@ -257,7 +266,7 @@ const styles = StyleSheet.create({
   swatchWrapActive: { borderColor: color.accent },
   tileLabel: { color: color.textDim, fontSize: type.xs },
   tileLabelActive: { color: color.text, fontWeight: '600' },
-  paletteRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  paletteLabel: { color: color.textDim, fontSize: type.sm, marginRight: 4 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  rowLabel: { color: color.textDim, fontSize: type.sm, marginRight: 4 },
   hint: { color: color.textGhost, fontSize: type.sm, textAlign: 'center', paddingVertical: 8 },
 })

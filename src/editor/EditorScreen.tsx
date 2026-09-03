@@ -40,7 +40,7 @@ import { AddSheet } from './AddSheet'
 import { ShapeBuilder } from './ShapeBuilder'
 import { MaskEditor } from './MaskEditor'
 import { TextEditor } from './TextEditor'
-import { FinishEditor } from './FinishEditor'
+import { AppearanceSheet, type AppearanceTab } from './AppearanceSheet'
 import { useDocImages } from '../view/useDocImages'
 import { pressHaptic, tick } from '../view/haptics'
 import { getAssetUri, registerAsset, setAssetUri } from '../model/assets'
@@ -137,7 +137,10 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
   const [addOpen, setAddOpen] = useState(false)
   const [maskOpen, setMaskOpen] = useState(false)
   const [textOpen, setTextOpen] = useState(false)
-  const [fxOpen, setFxOpen] = useState(false)
+  // Appearance mode: color + finish + surface for the selected layer in
+  // one sheet; the value is the tab it opened on (null = closed)
+  const [appearance, setAppearance] = useState<AppearanceTab | null>(null)
+  const appearanceTabRef = useRef<AppearanceTab>('color')
 
   // subject lift (iOS 17+ builds only; hidden elsewhere)
   const [cutoutState, setCutoutState] = useState<'idle' | 'working' | 'none'>('idle')
@@ -178,12 +181,12 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
 
   useEffect(() => {
     // the edited layer vanished (undo/delete) while a sheet was up
-    if ((maskOpen || textOpen || fxOpen) && !selected) {
+    if ((maskOpen || textOpen || appearance) && !selected) {
       setMaskOpen(false)
       setTextOpen(false)
-      setFxOpen(false)
+      setAppearance(null)
     }
-  }, [maskOpen, textOpen, fxOpen, selected])
+  }, [maskOpen, textOpen, appearance, selected])
 
   // ---- color picker + eyedropper ----
   const [pickerOpen, setPickerOpen] = useState(false)
@@ -203,6 +206,7 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
   const setMode = (m: EditorMode) => {
     setModeState(m)
     setPickerOpen(false)
+    setAppearance(null)
     setEyedropping(false)
   }
 
@@ -242,6 +246,21 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
       useEditor.getState().pushRecentColor(current)
     }
     setPickerOpen(false)
+    setEyedropping(false)
+  }
+
+  const openAppearance = () => {
+    setPickerTarget('layer')
+    pickerOpenColor.current = selectedColor
+    setAppearance(appearanceTabRef.current)
+  }
+
+  const closeAppearance = () => {
+    const current = pickerColorRef.current
+    if (pickerTargetRef.current === 'layer' && current && current !== pickerOpenColor.current) {
+      useEditor.getState().pushRecentColor(current)
+    }
+    setAppearance(null)
     setEyedropping(false)
   }
 
@@ -836,7 +855,7 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
               side={side}
               assets={assets}
               scale={total}
-              sweep={fxOpen}
+              sweep={appearance === 'finish' || appearance === 'surface'}
             />
             {selectionBox && !eyedropping && mode === 'select' ? (
               <>
@@ -962,14 +981,16 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
           <Pressable {...pressHaptic} style={pressed(styles.propsAction)} hitSlop={6} onPress={() => setMaskOpen(true)}>
             <Text style={styles.propsActionText}>{selected.mask ? 'Mask ●' : 'Mask'}</Text>
           </Pressable>
-          <Pressable {...pressHaptic} style={pressed(styles.propsAction)} hitSlop={6} onPress={() => setFxOpen(true)}>
-            <Text style={styles.propsActionText}>{selected.finish ? 'FX ●' : 'FX'}</Text>
+          <Pressable {...pressHaptic} style={pressed(styles.propsAction, styles.appearanceAction)} hitSlop={6} onPress={openAppearance}>
+            {selectedColor ? (
+              <View style={styles.colorDotBack}>
+                <View style={[styles.colorDot, { backgroundColor: selectedColor }]} />
+              </View>
+            ) : null}
+            <Text style={styles.propsActionText}>
+              {selected.finish || selected.emboss ? 'Appearance ●' : 'Appearance'}
+            </Text>
           </Pressable>
-          {selectedColor ? (
-            <Pressable {...pressHaptic} style={pressed(styles.colorChipBack)} hitSlop={6} onPress={() => openPicker('layer')}>
-              <View style={[styles.colorChip, { backgroundColor: selectedColor }]} />
-            </Pressable>
-          ) : null}
         </View>
       ) : null}
 
@@ -1011,8 +1032,26 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
         <MaskEditor layerId={selected.id} onClose={() => setMaskOpen(false)} />
       ) : null}
 
-      {fxOpen && selected ? (
-        <FinishEditor layerId={selected.id} onClose={() => setFxOpen(false)} />
+      {appearance && selected && !eyedropping ? (
+        <AppearanceSheet
+          layerId={selected.id}
+          initialTab={appearance}
+          color={
+            selectedColor
+              ? {
+                  value: selectedColor,
+                  onChange: applyColor,
+                  onGestureStart: () => useEditor.getState().beginGesture(),
+                  onEyedropper: () => setEyedropping(true),
+                }
+              : null
+          }
+          onClose={closeAppearance}
+          onTabChange={(t) => {
+            appearanceTabRef.current = t
+            setAppearance(t)
+          }}
+        />
       ) : null}
 
       {textOpen && selected?.type === 'text' ? (
@@ -1170,16 +1209,15 @@ const styles = StyleSheet.create({
     ...raised,
   },
   propsActionText: { color: color.textMid, fontSize: type.sm },
-  colorChipBack: {
-    width: 34,
-    height: 34,
-    borderRadius: 9,
+  appearanceAction: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  colorDotBack: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
     backgroundColor: color.swatchBack,
     overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: color.hairlineBright,
   },
-  colorChip: { flex: 1 },
+  colorDot: { flex: 1 },
   rotateHandle: {
     position: 'absolute',
     width: 16,

@@ -35,17 +35,28 @@ import { pressHaptic } from '../view/haptics'
 const RING_W = 30
 const SLIDER_H = 26
 
-type Props = {
+type BodyProps = {
   value: Color
   /** transient=true while a wheel/slider drag is in flight */
   onChange: (color: Color, transient: boolean) => void
   /** called before the first transient update of a drag (undo grouping) */
   onGestureStart: () => void
-  onClose: () => void
   onEyedropper: () => void
 }
 
-export function ColorPicker({ value, onChange, onGestureStart, onClose, onEyedropper }: Props) {
+type Props = BodyProps & { onClose: () => void }
+
+/** Standalone color sheet (draw/stamp tool colors). Layers use the
+ *  Appearance sheet, which embeds ColorPickerBody as its Color tab. */
+export function ColorPicker({ onClose, ...body }: Props) {
+  return (
+    <Sheet title="Color" onClose={onClose} backdrop>
+      <ColorPickerBody {...body} />
+    </Sheet>
+  )
+}
+
+export function ColorPickerBody({ value, onChange, onGestureStart, onEyedropper }: BodyProps) {
   const { width: screenW } = useWindowDimensions()
   const wheelSize = Math.min(screenW - 64, 240)
   const sliderW = Math.min(screenW - 48, 300)
@@ -212,7 +223,7 @@ export function ColorPicker({ value, onChange, onGestureStart, onClose, onEyedro
   }, [sliderW])
 
   return (
-    <Sheet title="Color" onClose={onClose} backdrop>
+    <>
       <View style={styles.headerRow}>
           <View style={[styles.previewBack]}>
             <View style={[styles.preview, { backgroundColor: hex }]} />
@@ -359,7 +370,7 @@ export function ColorPicker({ value, onChange, onGestureStart, onClose, onEyedro
             </View>
           </ScrollView>
         </View>
-    </Sheet>
+    </>
   )
 }
 

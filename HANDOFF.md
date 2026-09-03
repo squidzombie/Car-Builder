@@ -1,4 +1,33 @@
-# Handoff — 2026-09-02: testing-feedback batch (post run 4)
+# Handoff — 2026-09-03: review list 2 (visual foundation + bevel + appearance)
+
+Max's second review list, all built and emulator-verified:
+- Item 3+4 (foundation): theme.ts is now a neutral charcoal ramp with
+  blue reserved for selected-state marks + primary CTA; every
+  button-like control carries the `raised` bevel and `pressed()` sinks
+  it; featherweight press haptics (`pressHaptic`). Selected chip =
+  raised neutral fill + accent label (no more 1px accent borders).
+- Item 6: emboss is a runtime-shader IMAGE FILTER (bevel.sksl.ts,
+  `<RuntimeShader>` in a Group layer Paint) lighting the alpha slope
+  inside the silhouette; inset = uFlip -1. Works on CanvasKit too
+  (web-shot FLIP=1 shows the back's embossed serial).
+- Item 1: wear scratches are a scattered per-cell field (one bowed
+  segment per occupied cell, own angle/length/glint), not lanes.
+- Item 5: AppearanceSheet = Color | Finish | Surface segmented in one
+  per-layer sheet; props bar is [Edit][Mask][● Appearance]. ColorPicker
+  split into ColorPickerBody (embedded) + ColorPicker (tools sheet);
+  FinishEditor now exports FinishSection/SurfaceSection. The sheet
+  re-targets when you tap another layer (card stays live above it).
+- Item 2: already fixed before this list (one-surface FX picker, 7d4192c);
+  Max's build 5 predates it.
+Parked per Max: typography; Liquid Glass until the color/feel
+foundation settles (it now has).
+Emulator gotcha: launch it with `cmd //c start "" emulator.exe …` and
+Metro with `cmd //c start "" cmd //k "npx expo start --tunnel"` —
+plain `&` children die when the tool shell exits.
+
+---
+
+# Earlier — 2026-09-02: testing-feedback batch (post run 4)
 
 Worked Max's review doc in its suggested order; all emulator-verified:
 1. Image masking (verify-first): renderer's 'shape' mask branch existed
