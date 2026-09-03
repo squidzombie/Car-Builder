@@ -1,4 +1,32 @@
-# Handoff — 2026-09-03: review list 2 (visual foundation + bevel + appearance)
+# Handoff — 2026-09-03 (later): perf pass, text styling, snapping, photo-first
+
+Build e5186e60 (TestFlight run with the review-2 batch) FINISHED; Max
+submits. Then, per the agreed plan (1 perf → 2 designed-look → 3 photo
+flow), all emulator-verified:
+1. PERF: tilt now lives on the UI thread. useTilt returns a Reanimated
+   SharedValue<ViewState>; TiltCard uses useAnimatedStyle; CardRenderer
+   accepts ViewState | SharedValue and derives finish/bevel/wear
+   uniforms with useDerivedValue; LayerNode is React.memo'd. Measured
+   on the Pixel 7 emulator (dev): JS thread 18-20 fps while tilting →
+   59 fps. GOTCHA that cost a crash: never `{...captured}` inside a
+   worklet — spread of a captured object is EMPTY on the UI runtime
+   (react-native-worklets 0.10) → "Missing uniform value for: uSize".
+   Build uniform objects from explicitly captured fields.
+2. Text outline + shadow (types.ts text.outline/shadow; Text sheet
+   swatches + presets) and snapping guides while dragging (card center
+   + other layers' centers, accent lines, haptic).
+3. Photo-first: chooser hero → pick photo → every template preview
+   renders with it → pick → editor opens with Name selected + Text
+   sheet (EditorScreen `intent` prop). Cut-out toggle on iOS builds.
+   Templates refreshed (Portrait arch frame, Action checkerboard,
+   outlined/shadowed names).
+Tests 109/109. Emulator gallery has a seeded test-photo.png.
+Next candidates: video export (sharing story), photo adjustments,
+drag-to-reorder layers, empty states / saved-card management.
+
+---
+
+# Earlier — 2026-09-03: review list 2 (visual foundation + bevel + appearance)
 
 Max's second review list, all built and emulator-verified:
 - Item 3+4 (foundation): theme.ts is now a neutral charcoal ramp with
