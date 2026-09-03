@@ -42,36 +42,45 @@ half4 main(float2 xy) {
   float llen = length(lightDir);
   lightDir = llen > 0.03 ? lightDir / llen : float2(0.6, 0.8);
 
-  // --- hairline scratches: four directional families of short segments ---
-  for (int k = 0; k < 4; k++) {
-    float fk = float(k);
-    float ang = hash(float2(fk + 1.0, uSeed)) * 6.2831;
-    float2 dir = float2(cos(ang), sin(ang));
-    float2 perp = float2(-dir.y, dir.x);
+  // --- scattered hairline scratches ---
+  // A sparse jittered grid; each occupied cell holds ONE short scratch
+  // with its own position, angle, length, and a slight bow — no shared
+  // direction, so nothing reads as ruled lines. Each scratch glints only
+  // when the light rakes across its own direction, so they flare one at
+  // a time as the card tilts rather than in formation.
+  float2 cellSize = float2(110.0, 110.0);
+  float2 cellId = floor(xy / cellSize);
+  for (int gy = -1; gy <= 1; gy++) {
+    for (int gx = -1; gx <= 1; gx++) {
+      float2 id = cellId + float2(float(gx), float(gy));
+      float h0 = hash(id + uSeed);
+      if (h0 > 0.42 * uScratches) continue;   // only some cells carry one
+      float h1 = hash(id * 1.7 + uSeed + 11.0);
+      float h2 = hash(id * 2.3 + uSeed + 23.0);
+      float h3 = hash(id * 3.1 + uSeed + 37.0);
 
-    float spacing = 60.0 + 110.0 * hash(float2(fk, uSeed + 3.0));
-    // slight waviness so scratches don't read as ruled lines
-    float across = dot(xy, perp) / spacing + (vnoise(xy / 41.0 + fk) - 0.5) * 0.08;
-    float cell = floor(across);
-    float h = hash(float2(cell, fk * 7.0 + uSeed));
+      float2 center = (id + float2(0.2 + h1 * 0.6, 0.2 + h2 * 0.6)) * cellSize;
+      float ang = h3 * 6.2831;
+      float2 dir = float2(cos(ang), sin(ang));
+      float2 perp = float2(-dir.y, dir.x);
+      float halfLen = 14.0 + h2 * 60.0;
 
-    // only some lanes carry a scratch
-    float lane = step(h, 0.22 * uScratches);
-    float f = abs(fract(across) - 0.5) * spacing;
-    float line_ = smoothstep(1.5, 0.2, f);
+      float2 rel = xy - center;
+      float along = dot(rel, dir);
+      float across = dot(rel, perp);
+      // gentle bow along the length so it isn't a ruler-straight stroke
+      across -= sin(along / halfLen * 1.5708) * (h3 - 0.5) * 7.0;
 
-    // short segments, not edge-to-edge lines
-    float along = dot(xy, dir) / (90.0 + 180.0 * h) + h * 37.0;
-    float fa = fract(along);
-    float seg = smoothstep(0.04, 0.14, fa) * smoothstep(0.58, 0.42, fa);
+      float endFade = smoothstep(halfLen, halfLen * 0.55, abs(along));
+      float line_ = smoothstep(1.4, 0.15, abs(across));
+      // wispy: brightness varies along the scratch
+      float wisp = 0.55 + 0.45 * vnoise(float2(along * 0.09, h0 * 61.0));
 
-    // strictly light-gated: a scratch is invisible until the light
-    // sweeps across its direction, then it flares briefly — a constant
-    // baseline made them read as drawn-on
-    float alignment = abs(dot(perp, lightDir));
-    float glint = pow(alignment, 10.0);
+      float alignment = abs(dot(perp, lightDir));
+      float glint = pow(alignment, 10.0);
 
-    glow += lane * line_ * seg * glint * 1.1;
+      glow += line_ * endFade * glint * wisp * 1.15;
+    }
   }
 
   // --- edge whitening ---
