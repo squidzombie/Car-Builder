@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { StyleSheet, Text, View, useWindowDimensions } from 'react-native'
+import { useSharedValue } from 'react-native-reanimated'
 import type { CardDocument, ViewState } from '../model/types'
 import { lightFromTilt } from '../model/types'
 import { deserializeCard } from '../model/serialize'
@@ -20,7 +21,7 @@ export function ShareViewer({ cardId }: { cardId: string }) {
   useBundledFonts()
   const [doc, setDoc] = useState<CardDocument | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [view, setView] = useState<ViewState>({ tiltX: 0, tiltY: 0, lightX: 0.5, lightY: 0.35 })
+  const tilt = useSharedValue<ViewState>({ tiltX: 0, tiltY: 0, lightX: 0.5, lightY: 0.35 })
   const target = useRef({ x: 0, y: 0 })
 
   useEffect(() => {
@@ -63,12 +64,10 @@ export function ShareViewer({ cardId }: { cardId: string }) {
     const step = () => {
       current.x += (target.current.x - current.x) * SMOOTHING
       current.y += (target.current.y - current.y) * SMOOTHING
-      setView((prev) => {
-        if (Math.abs(prev.tiltX - current.x) < 0.001 && Math.abs(prev.tiltY - current.y) < 0.001) {
-          return prev
-        }
-        return { tiltX: current.x, tiltY: current.y, ...lightFromTilt(current.x, current.y) }
-      })
+      const prev = tilt.value
+      if (Math.abs(prev.tiltX - current.x) >= 0.001 || Math.abs(prev.tiltY - current.y) >= 0.001) {
+        tilt.value = { tiltX: current.x, tiltY: current.y, ...lightFromTilt(current.x, current.y) }
+      }
       raf = requestAnimationFrame(step)
     }
     raf = requestAnimationFrame(step)
@@ -77,7 +76,7 @@ export function ShareViewer({ cardId }: { cardId: string }) {
       window.removeEventListener('deviceorientation', onOrient)
       cancelAnimationFrame(raf)
     }
-  }, [])
+  }, [tilt])
 
   const assets = useDocImages(doc ?? demoCard())
   const cardWidth = Math.min(width - 48, height * 0.62, 420)
@@ -86,7 +85,7 @@ export function ShareViewer({ cardId }: { cardId: string }) {
   return (
     <View style={styles.root}>
       {doc ? (
-        <TiltCard doc={doc} view={view} width={cardWidth} assets={assets} />
+        <TiltCard doc={doc} tilt={tilt} width={cardWidth} assets={assets} />
       ) : (
         <Text style={styles.message}>{error ?? 'Loading card…'}</Text>
       )}

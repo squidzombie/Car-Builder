@@ -1,5 +1,5 @@
 import { test, expect } from '@jest/globals'
-import { nextBaseline } from '../useTilt'
+import { nextBaseline } from '../tiltMath'
 
 // The gyro neutral pose drifts toward the held pose (first beta feedback:
 // launching with the phone tilted left the card skewed forever).

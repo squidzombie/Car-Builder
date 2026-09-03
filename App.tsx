@@ -114,7 +114,7 @@ export default function App() {
 
 function PreviewScreen({ onEdit }: { onEdit: () => void }) {
   const { width } = useWindowDimensions()
-  const { view, panHandlers } = useTilt()
+  const { tilt, panHandlers } = useTilt()
   const doc = useEditor((s) => s.doc)
   const assets = useDocImages(doc)
   const [choosing, setChoosing] = useState(false)
@@ -169,7 +169,7 @@ function PreviewScreen({ onEdit }: { onEdit: () => void }) {
     <View style={styles.root} {...panHandlers}>
       <TiltCard
         doc={doc}
-        view={view}
+        tilt={tilt}
         width={cardWidth}
         assets={assets}
         onSideChange={(s) => (shownSide.current = s)}

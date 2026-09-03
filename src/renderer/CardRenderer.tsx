@@ -1,5 +1,6 @@
-import React from 'react'
+import React, { useEffect, useMemo } from 'react'
 import { Platform } from 'react-native'
+import { useDerivedValue, useSharedValue, type SharedValue } from 'react-native-reanimated'
 import {
   FillType,
   Group,
@@ -37,20 +38,54 @@ import { paintColor, PaintChildren } from './paintProps'
  * in here, ever. Draws in document pixel space; wrap in a scaled Group or
  * pass `scale` to fit a screen.
  */
+/**
+ * Tilt can arrive as a plain ViewState (export, tests, anything static) or
+ * as a Reanimated shared value (live preview, editor sweep, web viewer).
+ * Either way the tilt-dependent uniforms are derived on the UI thread, so
+ * a tilt frame never re-renders React (perf pass).
+ */
+export type TiltInput = ViewState | SharedValue<ViewState>
+
 export type CardRendererProps = {
   doc: CardDocument
   side: 'front' | 'back'
-  viewState: ViewState
+  viewState: TiltInput
   /** decoded image assets by assetId; missing ids render a placeholder */
   assets?: Record<string, SkImage>
   /** uniform scale from document px to output px (default 1) */
   scale?: number
 }
 
+const REST_VIEW: ViewState = { tiltX: 0, tiltY: 0, lightX: 0.5, lightY: 0.35 }
+
+const isShared = (v: TiltInput): v is SharedValue<ViewState> => !('tiltX' in v)
+
+/** Normalize plain-or-shared tilt into a shared value the UI thread reads. */
+function useViewSV(v: TiltInput): SharedValue<ViewState> {
+  const shared = isShared(v)
+  // (never read a shared value during render — `own` is unused when shared)
+  const own = useSharedValue<ViewState>(shared ? REST_VIEW : v)
+  useEffect(() => {
+    if (!shared) own.value = v
+  }, [shared, v, own])
+  return shared ? v : own
+}
+
 export function CardRenderer({ doc, side, viewState, assets, scale = 1 }: CardRendererProps) {
+  const sv = useViewSV(viewState)
   const { w, h } = doc.size
   const clip = Skia.RRectXY(Skia.XYWHRect(0, 0, w, h), doc.cornerRadius, doc.cornerRadius)
   const layers = doc[side].layers
+  const condition = doc.condition
+  const wearBase = useMemo(
+    () =>
+      condition && condition.intensity > 0 ? buildWearUniforms(condition, REST_VIEW, doc.size) : null,
+    [condition, doc.size],
+  )
+  const wearUniforms = useDerivedValue(() => {
+    const v = sv.value
+    return { ...(wearBase ?? {}), uTilt: [v.tiltX, v.tiltY], uLight: [v.lightX, v.lightY] }
+  }, [wearBase])
   return (
     <Group transform={[{ scale }]}>
       <Group clip={clip}>
@@ -58,15 +93,12 @@ export function CardRenderer({ doc, side, viewState, assets, scale = 1 }: CardRe
         <RoundedRect x={0} y={0} width={w} height={h} r={doc.cornerRadius} color="#f4f2ec" />
         {layers.map((layer) =>
           layer.visible ? (
-            <LayerNode key={layer.id} layer={layer} doc={doc} viewState={viewState} assets={assets} />
+            <LayerNode key={layer.id} layer={layer} doc={doc} viewState={sv} assets={assets} />
           ) : null,
         )}
-        {doc.condition && doc.condition.intensity > 0 ? (
+        {wearBase ? (
           <Rect x={0} y={0} width={w} height={h}>
-            <Shader
-              source={getWearEffect()}
-              uniforms={buildWearUniforms(doc.condition, viewState, doc.size)}
-            />
+            <Shader source={getWearEffect()} uniforms={wearUniforms} />
           </Rect>
         ) : null}
       </Group>
@@ -74,7 +106,9 @@ export function CardRenderer({ doc, side, viewState, assets, scale = 1 }: CardRe
   )
 }
 
-function LayerNode({
+// Memoized: a tilt frame changes nothing here (the shared value is the
+// same object), so static layers skip reconciliation entirely.
+const LayerNode = React.memo(function LayerNode({
   layer,
   doc,
   viewState,
@@ -82,11 +116,41 @@ function LayerNode({
 }: {
   layer: Layer
   doc: CardDocument
-  viewState: ViewState
+  viewState: SharedValue<ViewState>
   assets?: Record<string, SkImage>
 }) {
   const { w, h } = doc.size
   const t = layer.transform
+  const emboss = layer.emboss
+
+  // Emboss: a soft rounded bevel lit by the virtual light, computed from
+  // the layer's own alpha slope inside its silhouette (bevel.sksl). The
+  // light follows the tilt, so raised ink visibly catches it as the card
+  // moves; inset is the same bevel with the light flipped. Hooks first —
+  // the early return below must not skip them.
+  const bevelUniforms = useDerivedValue(() => {
+    const v = viewState.value
+    let lx = (v.lightX - 0.5) * 2
+    let ly = (v.lightY - 0.35) * 2
+    const len = Math.sqrt(lx * lx + ly * ly)
+    if (len < 0.05) {
+      lx = 0.5
+      ly = 0.7
+    } else {
+      lx /= len
+      ly /= len
+    }
+    const hgt = emboss ? emboss.height : 0
+    return {
+      // the shader wants the direction the light travels: away from the
+      // light source, i.e. the negated to-light vector
+      uLight: [-lx, -ly],
+      uRadius: 2 + hgt * 9,
+      uStrength: 0.55 + hgt * 0.45,
+      uFlip: emboss && emboss.style === 'inset' ? -1 : 1,
+    }
+  }, [emboss])
+
   const needsLayer =
     layer.finish !== undefined || layer.mask !== undefined || layer.emboss !== undefined
   const layerPaint =
@@ -110,37 +174,9 @@ function LayerNode({
 
   if (!layerPaint) return content
 
-  // Emboss: a soft rounded bevel lit by the virtual light, computed from
-  // the layer's own alpha slope inside its silhouette (bevel.sksl). The
-  // light follows the tilt, so raised ink visibly catches it as the card
-  // moves; inset is the same bevel with the light flipped.
-  let bevel: React.ReactNode = null
-  if (layer.emboss) {
-    let lx = (viewState.lightX - 0.5) * 2
-    let ly = (viewState.lightY - 0.35) * 2
-    const len = Math.hypot(lx, ly)
-    if (len < 0.05) {
-      lx = 0.5
-      ly = 0.7
-    } else {
-      lx /= len
-      ly /= len
-    }
-    const h = layer.emboss.height
-    bevel = (
-      <RuntimeShader
-        source={getBevelEffect()}
-        uniforms={{
-          // the shader wants the direction the light travels: away from
-          // the light source, i.e. the negated to-light vector
-          uLight: [-lx, -ly],
-          uRadius: 2 + h * 9,
-          uStrength: 0.55 + h * 0.45,
-          uFlip: layer.emboss.style === 'inset' ? -1 : 1,
-        }}
-      />
-    )
-  }
+  const bevel = emboss ? (
+    <RuntimeShader source={getBevelEffect()} uniforms={bevelUniforms} />
+  ) : null
 
   // Shape masks clip the layer group directly: a dstIn pass only touches
   // pixels its geometry covers, so a shape drawn dstIn would leave
@@ -172,17 +208,35 @@ function LayerNode({
       ) : null}
     </Group>
   )
-}
+})
 
 /** Finish pass: family shader drawn srcATop so it lands only on the layer's alpha. */
-function FinishPass({ layer, doc, viewState }: { layer: Layer; doc: CardDocument; viewState: ViewState }) {
+function FinishPass({
+  layer,
+  doc,
+  viewState,
+}: {
+  layer: Layer
+  doc: CardDocument
+  viewState: SharedValue<ViewState>
+}) {
   const finish = layer.finish!
   const effect = getFinishEffect(finish.family)
-  const withPalette =
-    finish.paletteMode === 'custom' && !finish.customColors
-      ? { ...finish, customColors: doc.palette.pinned }
-      : finish
-  const uniforms = buildFinishUniforms(withPalette, viewState, doc.size)
+  const pinned = doc.palette.pinned
+  const size = doc.size
+  // everything but tilt/light is static per finish; only those two are
+  // re-derived per frame, on the UI thread
+  const base = useMemo(() => {
+    const withPalette =
+      finish.paletteMode === 'custom' && !finish.customColors
+        ? { ...finish, customColors: pinned }
+        : finish
+    return buildFinishUniforms(withPalette, REST_VIEW, size)
+  }, [finish, pinned, size])
+  const uniforms = useDerivedValue(() => {
+    const v = viewState.value
+    return { ...base, uTilt: [v.tiltX, v.tiltY], uLight: [v.lightX, v.lightY] }
+  }, [base])
   return (
     <Rect x={0} y={0} width={doc.size.w} height={doc.size.h} blendMode="srcATop">
       <Shader source={effect} uniforms={uniforms} />

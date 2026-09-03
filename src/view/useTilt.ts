@@ -1,56 +1,34 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { PanResponder } from 'react-native'
+import { useSharedValue, type SharedValue } from 'react-native-reanimated'
 import { DeviceMotion } from 'expo-sensors'
 import type { ViewState } from '../model/types'
 import { lightFromTilt } from '../model/types'
 
-const DEAD_ZONE = 0.03
+import { GYRO_RANGE, applyDeadZone, clamp, nextBaseline } from './tiltMath'
+
 const SMOOTHING = 0.18 // lerp factor per frame
-const GYRO_RANGE = 0.6 // radians of device rotation mapped to full tilt
 const DRAG_RANGE = 120 // px of finger travel mapped to full tilt
 const DRAG_SLOP = 8 // px of movement before a touch counts as a drag, not a tap
 
-// The neutral pose is not fixed: it drifts toward however the phone is
-// actually being held, so launching with the phone tilted (or settling
-// into a new position) self-corrects instead of leaving the card skewed
-// (first beta feedback). Slow enough that quick tilts still shine.
-// Two speeds: ambient drift is slow (tau ~8s) so deliberately holding a
-// tilt to admire the shine barely fades, but an offset pinned PAST full
-// tilt (the launched-sideways case) is absorbed fast until back in range.
-const BASELINE_DRIFT = 0.004 // per ~33ms reading
-const BASELINE_DRIFT_PINNED = 0.05
-
-function applyDeadZone(v: number): number {
-  if (Math.abs(v) < DEAD_ZONE) return 0
-  return Math.sign(v) * ((Math.abs(v) - DEAD_ZONE) / (1 - DEAD_ZONE))
-}
-
-/** Pure baseline update for one gyro reading (exported for tests). */
-export function nextBaseline(
-  baseline: { beta: number; gamma: number },
-  rot: { beta: number; gamma: number },
-  offsetMagnitude: number,
-): { beta: number; gamma: number } {
-  const f = offsetMagnitude > 1 ? BASELINE_DRIFT_PINNED : BASELINE_DRIFT
-  return {
-    beta: baseline.beta + (rot.beta - baseline.beta) * f,
-    gamma: baseline.gamma + (rot.gamma - baseline.gamma) * f,
-  }
-}
-
-const clamp = (v: number) => Math.max(-1, Math.min(1, v))
+export const REST_VIEW: ViewState = { tiltX: 0, tiltY: 0, lightX: 0.5, lightY: 0.35 }
 
 /**
  * Tilt input (CLAUDE.md §7): gyroscope and finger drag are both always live —
  * a drag takes over while the finger is down and hands back to the gyro on
- * release. Returns a full ViewState (light derived from tilt).
+ * release. Returns the tilt as a Reanimated SHARED VALUE (perf pass): the
+ * smoothing loop writes it every frame without a single React re-render,
+ * and the card's shaders and 3D transform read it on the UI thread.
  *
  * Spread `panHandlers` on a view that CONTAINS the card's tap target: the
  * responder captures the touch only once it moves past DRAG_SLOP, so taps
  * still reach the card (flip) while drags never trigger it.
  */
-export function useTilt() {
-  const [view, setView] = useState<ViewState>({ tiltX: 0, tiltY: 0, lightX: 0.5, lightY: 0.35 })
+export function useTilt(): {
+  tilt: SharedValue<ViewState>
+  panHandlers: ReturnType<typeof PanResponder.create>['panHandlers']
+} {
+  const tilt = useSharedValue<ViewState>(REST_VIEW)
   const target = useRef({ x: 0, y: 0 })
   const current = useRef({ x: 0, y: 0 })
   const gyroTarget = useRef({ x: 0, y: 0 })
@@ -58,7 +36,8 @@ export function useTilt() {
   const grabbed = useRef({ x: 0, y: 0 })
   const baseline = useRef<{ beta: number; gamma: number } | null>(null)
 
-  // smoothing loop
+  // smoothing loop: one tiny JS callback per frame that only touches the
+  // shared value — no state, no reconciliation
   useEffect(() => {
     let raf = 0
     const step = () => {
@@ -66,15 +45,15 @@ export function useTilt() {
       const t = target.current
       c.x += (t.x - c.x) * SMOOTHING
       c.y += (t.y - c.y) * SMOOTHING
-      setView((prev) => {
-        if (Math.abs(prev.tiltX - c.x) < 0.001 && Math.abs(prev.tiltY - c.y) < 0.001) return prev
-        return { tiltX: c.x, tiltY: c.y, ...lightFromTilt(c.x, c.y) }
-      })
+      const prev = tilt.value
+      if (Math.abs(prev.tiltX - c.x) >= 0.001 || Math.abs(prev.tiltY - c.y) >= 0.001) {
+        tilt.value = { tiltX: c.x, tiltY: c.y, ...lightFromTilt(c.x, c.y) }
+      }
       raf = requestAnimationFrame(step)
     }
     raf = requestAnimationFrame(step)
     return () => cancelAnimationFrame(raf)
-  }, [])
+  }, [tilt])
 
   // gyro input — keeps updating during a drag so release hands back smoothly
   useEffect(() => {
@@ -128,5 +107,5 @@ export function useTilt() {
     [],
   )
 
-  return { view, panHandlers: panResponder.panHandlers }
+  return { tilt, panHandlers: panResponder.panHandlers }
 }

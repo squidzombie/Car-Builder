@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { PanResponder, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native'
 import { Canvas, Group, Skia, useCanvasRef } from '@shopify/react-native-skia'
+import { useSharedValue } from 'react-native-reanimated'
 import { CardRenderer } from '../renderer/CardRenderer'
 import { defaultViewState, lightFromTilt } from '../model/types'
 import type { ViewState } from '../model/types'
@@ -1102,10 +1103,12 @@ function EditorCanvas({
   scale: number
   sweep: boolean
 }) {
-  const [tilt, setTilt] = useState<ViewState>(defaultViewState())
+  // shared value: the sweep writes it per frame with zero React renders;
+  // the shaders read it on the UI thread (perf pass)
+  const tilt = useSharedValue<ViewState>(defaultViewState())
   useEffect(() => {
     if (!sweep) {
-      setTilt(defaultViewState())
+      tilt.value = defaultViewState()
       return
     }
     let raf = 0
@@ -1114,12 +1117,12 @@ function EditorCanvas({
       const t = (Date.now() - start) / 1000
       const tiltX = Math.sin(t * 0.22) * 0.28
       const tiltY = Math.cos(t * 0.16) * 0.2
-      setTilt({ tiltX, tiltY, ...lightFromTilt(tiltX, tiltY) })
+      tilt.value = { tiltX, tiltY, ...lightFromTilt(tiltX, tiltY) }
       raf = requestAnimationFrame(loop)
     }
     raf = requestAnimationFrame(loop)
     return () => cancelAnimationFrame(raf)
-  }, [sweep])
+  }, [sweep, tilt])
 
   return (
     <Canvas ref={canvasRef} style={{ width, height }}>
