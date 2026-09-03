@@ -3,7 +3,8 @@ import { FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-na
 import { Feather } from '@expo/vector-icons'
 import type { Layer } from '../model/types'
 import { useEditor } from '../state/useEditor'
-import { color, pressed, type } from './theme'
+import { color, pressed, raised, type } from './theme'
+import { pressHaptic } from '../view/haptics'
 
 // Bottom layer panel (CLAUDE.md §4): select / reorder / rename / lock /
 // hide / duplicate / delete. Top layer listed first. Adding goes through
@@ -44,7 +45,7 @@ export function LayerPanel({ onAddPress }: { onAddPress: () => void }) {
     <View style={styles.panel}>
       <View style={styles.header}>
         <Text style={styles.title}>Layers</Text>
-        <Pressable style={pressed(styles.addButton)} hitSlop={8} onPress={onAddPress}>
+        <Pressable {...pressHaptic} style={pressed(styles.addButton)} hitSlop={8} onPress={onAddPress}>
           <Feather name="plus" size={18} color={color.textMid} />
         </Pressable>
       </View>
@@ -168,6 +169,7 @@ const styles = StyleSheet.create({
     height: 36,
     borderRadius: 18,
     backgroundColor: color.chip,
+    ...raised,
     alignItems: 'center',
     justifyContent: 'center',
   },

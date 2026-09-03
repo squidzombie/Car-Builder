@@ -6,34 +6,40 @@ import {
   type ViewStyle,
 } from 'react-native'
 
-// Design tokens (Build 3, memory: ui-design-bar). One system everywhere:
-// three background planes, one accent, hierarchy from surface + type —
-// not decoration. Dense UI, quiet chrome, 44pt touch targets.
+// Design tokens (memory: ui-design-bar, ui-visual-first). One system
+// everywhere: a neutral charcoal ramp for every surface, and blue reserved
+// for one job — "this is selected". Depth comes from a lit-from-above
+// bevel on interactive controls (raised at rest, sunk while pressed), not
+// from decoration. Dense UI, quiet chrome, 44pt touch targets.
 
 export const color = {
-  bg0: '#08090f', // screen ground
-  bgBar: '#0d1120', // tool/props bars — between ground and panel
-  bg1: '#10141f', // panels and sheets
-  bg2: '#1a2136', // elevated surfaces (menus, popovers, tiles)
-  track: '#12162a', // segmented-control track
-  chip: '#1c2233', // interactive chip on a panel
-  chipGlass: '#1c2233ee', // chip floating over the canvas
-  chipOnElevated: '#242e4d', // interactive chip on an elevated surface
-  chipActive: '#2a3554',
-  rowSelected: '#18203a', // selected list row
-  accent: '#4da3ff',
-  onAccent: '#0b0e19', // text on an accent-filled control
-  hairline: '#232b42',
-  hairlineBright: '#3d4a6e',
-  text: '#e6ecf7',
-  textMid: '#c9d6ea',
-  textDim: '#7f8db0',
-  textFaint: '#5a6478',
-  textGhost: '#3d4560',
-  glyph: '#aeb9d0', // shape/icon glyph fill
+  bg0: '#151517', // screen ground — light charcoal, never pure black
+  bgBar: '#19191c', // tool/props bars — between ground and panel
+  bg1: '#1d1d20', // panels and sheets
+  bg2: '#27272b', // elevated surfaces (menus, popovers, picker panels)
+  track: '#141416', // recessed track (segmented control, slider well)
+  chip: '#2b2b30', // interactive control on a panel
+  chipGlass: '#2b2b30ee', // control floating over the canvas
+  chipOnElevated: '#34343a', // interactive control on an elevated surface
+  chipActive: '#3b3b41', // selected / open control: raised neutral fill
+  rowSelected: '#252529', // selected list row
+  accent: '#4da3ff', // ONLY for selected-state marks and the primary CTA
+  onAccent: '#0c0c0e', // text on an accent-filled control
+  hairline: '#2d2d32',
+  hairlineBright: '#424248',
+  text: '#f2f2f4',
+  textMid: '#cfcfd4',
+  textDim: '#8f8f97',
+  textFaint: '#67676e',
+  textGhost: '#4b4b51',
+  glyph: '#c5c5cc', // shape/icon glyph fill
   warn: '#ffd166',
-  danger: '#c76a72',
+  danger: '#e0646f',
   swatchBack: '#e8e8e8',
+  /** top-edge light catch on raised controls */
+  bevelLight: 'rgba(255,255,255,0.07)',
+  /** bottom-edge shade under raised controls */
+  bevelShade: 'rgba(0,0,0,0.42)',
 }
 
 export const type = {
@@ -58,6 +64,28 @@ export const elevated: ViewStyle = {
   elevation: 8,
 }
 
+/**
+ * Raised control: a lit top edge and a shaded bottom edge. Shadows are
+ * invisible on dark surfaces, so depth is carried by the bevel instead.
+ * Mix into any button-like style; `pressed()` sinks it while touched.
+ */
+export const raised: ViewStyle = {
+  borderWidth: 1,
+  borderTopColor: color.bevelLight,
+  borderLeftColor: 'rgba(255,255,255,0.03)',
+  borderRightColor: 'rgba(0,0,0,0.18)',
+  borderBottomColor: color.bevelShade,
+}
+
+const sunk: ViewStyle = {
+  borderTopColor: 'rgba(0,0,0,0.38)',
+  borderLeftColor: 'rgba(0,0,0,0.16)',
+  borderRightColor: 'rgba(255,255,255,0.02)',
+  borderBottomColor: 'rgba(255,255,255,0.05)',
+  transform: [{ translateY: 1 }],
+  opacity: 0.9,
+}
+
 export const chip: ViewStyle = {
   minHeight: 36,
   paddingHorizontal: 14,
@@ -65,22 +93,23 @@ export const chip: ViewStyle = {
   backgroundColor: color.chip,
   alignItems: 'center',
   justifyContent: 'center',
+  ...raised,
 }
 
+/** Selected chip: raised neutral fill; the accent goes on the label. */
 export const chipActive: ViewStyle = {
   backgroundColor: color.chipActive,
-  borderWidth: 1,
-  borderColor: color.accent,
 }
 
 export const chipText: TextStyle = { color: color.textDim, fontSize: type.md }
-export const chipTextActive: TextStyle = { color: color.text }
+export const chipTextActive: TextStyle = { color: color.accent, fontWeight: '600' }
 
 /**
- * Pressed-state feedback for Pressable `style` props: dims while touched.
+ * Pressed-state feedback for Pressable `style` props: a raised control
+ * sinks (bevel inverts, 1px drop); anything else just dims slightly.
  * Usage: style={pressed(styles.button, isActive && styles.buttonActive)}
  */
 export const pressed =
   (...styles: StyleProp<ViewStyle>[]) =>
   (state: PressableStateCallbackType): StyleProp<ViewStyle> =>
-    [...styles, state.pressed && { opacity: 0.55 }]
+    [...styles, state.pressed && sunk]

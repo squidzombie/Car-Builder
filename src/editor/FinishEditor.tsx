@@ -8,7 +8,8 @@ import { buildFinishUniforms } from '../finishes/uniforms'
 import { useEditor } from '../state/useEditor'
 import { MiniSlider } from './MiniSlider'
 import { Sheet } from './Sheet'
-import { chip, chipActive, chipText, chipTextActive, color, pressed, radius, type } from './theme'
+import { chip, chipActive, chipText, chipTextActive, color, pressed, radius, raised, type } from './theme'
+import { pressHaptic } from '../view/haptics'
 
 // Finish picker (M4, CLAUDE.md §5): per-layer family + preset, intensity
 // and pattern scale, and the palette mode — 'custom' feeds the card's
@@ -55,7 +56,7 @@ export function FinishEditor({ layerId, onClose }: Props) {
       <View style={styles.panel}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             <View style={styles.famRow}>
-              <Pressable
+              <Pressable {...pressHaptic}
                 style={pressed(styles.famChip, !finish && styles.famChipActive)}
                 onPress={() => patch((l) => (l.finish = undefined))}
               >
@@ -64,7 +65,7 @@ export function FinishEditor({ layerId, onClose }: Props) {
               {FAMILIES.map((f) => {
                 const open = family === f.key
                 return (
-                  <Pressable
+                  <Pressable {...pressHaptic}
                     key={f.key}
                     style={pressed(styles.famChip, open && styles.famChipActive)}
                     onPress={() => setFamily(f.key)}
@@ -80,7 +81,7 @@ export function FinishEditor({ layerId, onClose }: Props) {
               {FINISH_PRESETS.filter((p) => p.family === family).map((p) => {
                 const active = finish?.family === p.family && finish?.preset === p.preset
                 return (
-                  <Pressable
+                  <Pressable {...pressHaptic}
                     key={p.preset}
                     style={pressed(styles.tile)}
                     onPress={() => pickPreset(p.family, p.preset)}
@@ -127,7 +128,7 @@ export function FinishEditor({ layerId, onClose }: Props) {
                   ['custom', 'Card palette'],
                 ] as const
               ).map(([mode, label]) => (
-                <Pressable
+                <Pressable {...pressHaptic}
                   key={mode}
                   style={[styles.chip, finish.paletteMode === mode && styles.chipActive]}
                   onPress={() =>
@@ -163,7 +164,7 @@ export function FinishEditor({ layerId, onClose }: Props) {
           ).map(([key, label]) => {
             const active = key === 'flat' ? !layer.emboss : layer.emboss?.style === key
             return (
-              <Pressable
+              <Pressable {...pressHaptic}
                 key={key}
                 style={[styles.chip, active && styles.chipActive]}
                 onPress={() =>
@@ -242,9 +243,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  famChipActive: { backgroundColor: color.chipActive },
+  famChipActive: { backgroundColor: color.chipActive, ...raised },
   famText: { color: color.textDim, fontSize: type.md },
-  famTextActive: { color: color.text, fontWeight: '600' },
+  famTextActive: { color: color.accent, fontWeight: '600' },
   tileRow: { flexDirection: 'row', gap: 10, paddingHorizontal: 14, paddingVertical: 12 },
   tile: { alignItems: 'center', gap: 4, width: SWATCH + 10 },
   swatchWrap: {

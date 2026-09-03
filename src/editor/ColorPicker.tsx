@@ -24,6 +24,8 @@ import { useEditor } from '../state/useEditor'
 import { STARTER_PALETTES } from '../model/starterPalettes'
 import { Sheet } from './Sheet'
 import { Feather } from '@expo/vector-icons'
+import { color, pressed, raised, type } from './theme'
+import { pressHaptic } from '../view/haptics'
 
 // Color picker (CLAUDE.md §6): hue wheel + saturation/value square, hex
 // input, alpha slider, pinned swatches, recents, eyedropper. Rendered as a
@@ -224,11 +226,11 @@ export function ColorPicker({ value, onChange, onGestureStart, onClose, onEyedro
             autoCapitalize="none"
             autoCorrect={false}
           />
-          <Pressable style={styles.headerButton} hitSlop={6} onPress={togglePin}>
-            <Feather name="bookmark" size={17} color={isPinned ? '#ffd166' : '#c9d6ea'} />
+          <Pressable {...pressHaptic} style={pressed(styles.headerButton)} hitSlop={6} onPress={togglePin}>
+            <Feather name="bookmark" size={17} color={isPinned ? color.warn : color.textMid} />
           </Pressable>
-          <Pressable style={styles.headerButton} hitSlop={6} onPress={onEyedropper}>
-            <Feather name="crosshair" size={17} color="#c9d6ea" />
+          <Pressable {...pressHaptic} style={pressed(styles.headerButton)} hitSlop={6} onPress={onEyedropper}>
+            <Feather name="crosshair" size={17} color={color.textMid} />
           </Pressable>
         </View>
 
@@ -236,7 +238,7 @@ export function ColorPicker({ value, onChange, onGestureStart, onClose, onEyedro
           <View style={{ width: wheelSize, height: wheelSize }} {...wheelPan.panHandlers}>
             {/* explicit background: a transparent Skia canvas on Android can
                 skip full-surface redraws and render partial content */}
-            <Canvas style={{ width: wheelSize, height: wheelSize, backgroundColor: '#10141f' }}>
+            <Canvas style={{ width: wheelSize, height: wheelSize, backgroundColor: color.bg1 }}>
               {ringSegments.map((seg, i) => (
                 <Path
                   key={i}
@@ -341,7 +343,7 @@ export function ColorPicker({ value, onChange, onGestureStart, onClose, onEyedro
               {STARTER_PALETTES.map((p) => (
                 <Pressable
                   key={p.id}
-                  style={styles.paletteChip}
+                  style={pressed(styles.paletteChip)}
                   onPress={() => useEditor.getState().loadPalette(p.colors)}
                 >
                   <Text style={styles.paletteName} numberOfLines={1}>
@@ -552,16 +554,16 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 8,
-    backgroundColor: '#e8e8e8',
+    backgroundColor: color.swatchBack,
     overflow: 'hidden',
   },
   preview: { flex: 1 },
   hexInput: {
     flex: 1,
-    color: '#e6ecf7',
+    color: color.text,
     fontSize: 15,
     fontVariant: ['tabular-nums'],
-    backgroundColor: '#1c2233',
+    backgroundColor: color.chip,
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 8,
@@ -570,42 +572,44 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 10,
-    backgroundColor: '#1c2233',
+    backgroundColor: color.chip,
+    ...raised,
     alignItems: 'center',
     justifyContent: 'center',
   },
   wheelRow: { alignItems: 'center', paddingVertical: 2 },
   sliderRow: { alignItems: 'center', paddingVertical: 4 },
   swatchSection: { paddingTop: 4 },
-  swatchLabel: { color: '#7f8db0', fontSize: 12, marginBottom: 6 },
-  swatchEmpty: { color: '#3d4560', fontSize: 12, paddingVertical: 6 },
+  swatchLabel: { color: color.textDim, fontSize: type.sm, marginBottom: 6 },
+  swatchEmpty: { color: color.textGhost, fontSize: type.sm, paddingVertical: 6 },
   swatchStrip: { flexDirection: 'row', gap: 8, paddingVertical: 2 },
   swatchBack: {
     width: 38,
     height: 38,
     borderRadius: 10,
-    backgroundColor: '#e8e8e8',
+    backgroundColor: color.swatchBack,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: '#2a3554',
+    borderColor: color.hairlineBright,
   },
   swatch: { flex: 1 },
   pinGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingVertical: 2 },
-  pinHover: { borderColor: '#4da3ff', borderWidth: 2 },
+  pinHover: { borderColor: color.accent, borderWidth: 2 },
   pinFloating: {
     borderColor: '#ffffff',
     elevation: 6,
     zIndex: 10,
   },
   paletteChip: {
-    backgroundColor: '#1c2233',
+    backgroundColor: color.chip,
+    ...raised,
     borderRadius: 10,
     paddingHorizontal: 10,
     paddingVertical: 7,
     gap: 5,
     width: 118,
   },
-  paletteName: { color: '#c9d6ea', fontSize: 11 },
+  paletteName: { color: color.textMid, fontSize: type.xs },
   paletteDots: { flexDirection: 'row', gap: 4 },
-  paletteDot: { width: 14, height: 14, borderRadius: 4, borderWidth: StyleSheet.hairlineWidth, borderColor: '#3d4a6e' },
+  paletteDot: { width: 14, height: 14, borderRadius: 4, borderWidth: StyleSheet.hairlineWidth, borderColor: color.hairlineBright },
 })

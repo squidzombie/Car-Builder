@@ -39,7 +39,8 @@ import { ShareViewer } from './src/web/ShareViewer'
 import { shareConfigured } from './src/model/shareConfig'
 import { uploadCard } from './src/model/shareApi'
 import { Sheet } from './src/editor/Sheet'
-import { color, pressed, type as t } from './src/editor/theme'
+import { pressHaptic } from './src/view/haptics'
+import { color, pressed, raised, type as t } from './src/editor/theme'
 
 // On web the app IS the share viewer: /c/{id} renders a card read-only.
 const webShareId =
@@ -173,13 +174,13 @@ function PreviewScreen({ onEdit }: { onEdit: () => void }) {
         assets={assets}
         onSideChange={(s) => (shownSide.current = s)}
       />
-      <Pressable style={pressed(styles.gradeChip)} hitSlop={8} onPress={() => setGrading(true)}>
+      <Pressable {...pressHaptic} style={pressed(styles.gradeChip)} hitSlop={8} onPress={() => setGrading(true)}>
         <Text style={styles.gradeChipText}>
           {doc.condition ? `Grade · ${doc.condition.preset}` : 'Grade'}
         </Text>
       </Pressable>
       <View style={styles.controls}>
-        <Pressable
+        <Pressable {...pressHaptic}
           style={pressed(styles.titleRow)}
           hitSlop={8}
           onPress={() => {
@@ -193,13 +194,13 @@ function PreviewScreen({ onEdit }: { onEdit: () => void }) {
           <Feather name="edit-2" size={12} color={color.textFaint} />
         </Pressable>
         <View style={styles.buttonRow}>
-          <Pressable style={pressed(styles.editButton, styles.primaryButton)} onPress={onEdit} hitSlop={6}>
+          <Pressable {...pressHaptic} style={pressed(styles.editButton, styles.primaryButton)} onPress={onEdit} hitSlop={6}>
             <Text style={[styles.editButtonText, styles.primaryButtonText]}>Edit card</Text>
           </Pressable>
-          <Pressable style={pressed(styles.editButton)} onPress={() => setChoosing(true)} hitSlop={6}>
+          <Pressable {...pressHaptic} style={pressed(styles.editButton)} onPress={() => setChoosing(true)} hitSlop={6}>
             <Text style={styles.editButtonText}>New</Text>
           </Pressable>
-          <Pressable
+          <Pressable {...pressHaptic}
             style={pressed(styles.editButton)}
             hitSlop={6}
             disabled={exportSide !== null}
@@ -210,7 +211,7 @@ function PreviewScreen({ onEdit }: { onEdit: () => void }) {
             </Text>
           </Pressable>
           {shareConfigured() ? (
-            <Pressable
+            <Pressable {...pressHaptic}
               style={pressed(styles.editButton)}
               hitSlop={6}
               disabled={linking}
@@ -240,7 +241,7 @@ function PreviewScreen({ onEdit }: { onEdit: () => void }) {
               Edit card to add photos, foil, stamps, and your name
             </Text>
           </View>
-          <Pressable style={pressed(styles.welcomeButton)} onPress={dismissWelcome}>
+          <Pressable {...pressHaptic} style={pressed(styles.welcomeButton)} onPress={dismissWelcome}>
             <Text style={styles.welcomeButtonText}>Start creating</Text>
           </Pressable>
         </Sheet>
@@ -372,9 +373,10 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 20,
     backgroundColor: color.chip,
+    ...raised,
   },
   editButtonText: { color: color.textMid, fontSize: t.base },
-  primaryButton: { backgroundColor: color.accent },
+  primaryButton: { backgroundColor: color.accent, ...raised },
   primaryButtonText: { color: color.onAccent, fontWeight: '700' },
   hint: { color: color.textFaint, fontSize: t.sm },
   welcomeRow: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 4 },
@@ -384,6 +386,7 @@ const styles = StyleSheet.create({
     minHeight: 44,
     borderRadius: 22,
     backgroundColor: color.accent,
+    ...raised,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -397,6 +400,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     borderRadius: 18,
     backgroundColor: color.chip,
+    ...raised,
     alignItems: 'center',
     justifyContent: 'center',
   },

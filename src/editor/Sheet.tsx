@@ -9,7 +9,8 @@ import {
   Text,
   View,
 } from 'react-native'
-import { color, pressed, radius, type } from './theme'
+import { color, pressed, radius, raised, type } from './theme'
+import { pressHaptic } from '../view/haptics'
 
 // The one bottom-sheet container (Build 3): grab handle, title row, Done,
 // consistent padding/elevation. `backdrop` dims and closes on tap — use it
@@ -68,7 +69,7 @@ export function Sheet({ title, onClose, closeLabel = 'Done', backdrop, children,
             </Text>
             <View style={styles.headerActions}>
               {headerRight}
-              <Pressable style={pressed(styles.doneButton)} hitSlop={8} onPress={onClose}>
+              <Pressable {...pressHaptic} style={pressed(styles.doneButton)} hitSlop={8} onPress={onClose}>
                 <Text style={styles.doneText}>{closeLabel}</Text>
               </Pressable>
             </View>
@@ -133,7 +134,8 @@ const styles = StyleSheet.create({
     minHeight: 36,
     paddingHorizontal: 16,
     borderRadius: radius.md,
-    backgroundColor: color.chipActive,
+    backgroundColor: color.chip,
+    ...raised,
     alignItems: 'center',
     justifyContent: 'center',
   },

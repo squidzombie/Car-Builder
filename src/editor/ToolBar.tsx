@@ -12,7 +12,8 @@ import {
   type RotationMode,
   type SymmetryMode,
 } from './tools'
-import { color, pressed, type } from './theme'
+import { color, pressed, raised, type } from './theme'
+import { pressHaptic } from '../view/haptics'
 
 // M3 tool bar: mode switch plus per-mode options. Deliberately restrained
 // styling — text labels and geometric glyphs, no emoji (user feedback).
@@ -62,7 +63,7 @@ export function ToolBar(p: Props) {
     <View style={styles.bar}>
       <View style={styles.modeRow}>
         {(['select', 'draw', 'stamp'] as const).map((m) => (
-          <Pressable
+          <Pressable {...pressHaptic}
             key={m}
             style={pressed(styles.modeButton, p.mode === m && styles.modeButtonActive)}
             onPress={() => p.onMode(m)}
@@ -88,22 +89,22 @@ export function ToolBar(p: Props) {
         </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
           <View style={styles.optionRow}>
-            <Pressable style={pressed(styles.option)} onPress={() => p.onOpenColor('draw')}>
+            <Pressable {...pressHaptic} style={pressed(styles.option)} onPress={() => p.onOpenColor('draw')}>
               <View style={[styles.colorDot, { backgroundColor: p.draw.color }]} />
             </Pressable>
-            <Pressable
+            <Pressable {...pressHaptic}
               style={pressed(styles.option, p.draw.eraser && styles.optionActive)}
               onPress={() => p.onDraw({ eraser: !p.draw.eraser })}
             >
               <Text style={styles.optionText}>Eraser</Text>
             </Pressable>
-            <Pressable
+            <Pressable {...pressHaptic}
               style={pressed(styles.option, p.draw.symmetry !== 'off' && styles.optionActive)}
               onPress={() => p.onDraw({ symmetry: cycle(SYMMETRY_ORDER, p.draw.symmetry) })}
             >
               <Text style={styles.optionText}>{SYMMETRY_LABEL[p.draw.symmetry]}</Text>
             </Pressable>
-            <Pressable style={pressed(styles.option)} onPress={p.onNewLayer}>
+            <Pressable {...pressHaptic} style={pressed(styles.option)} onPress={p.onNewLayer}>
               <Text style={styles.optionText}>New layer</Text>
             </Pressable>
           </View>
@@ -120,7 +121,7 @@ export function ToolBar(p: Props) {
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             <View style={styles.optionRow}>
               {p.shapes.map((s) => (
-                <Pressable
+                <Pressable {...pressHaptic}
                   key={s.id}
                   style={pressed(styles.option, p.stamp.shapeId === s.id && styles.optionActive)}
                   onPress={() => p.onStamp({ shapeId: s.id })}
@@ -128,7 +129,7 @@ export function ToolBar(p: Props) {
                   <ShapeGlyph shape={s} />
                 </Pressable>
               ))}
-              <Pressable style={pressed(styles.option)} onPress={p.onOpenBuilder}>
+              <Pressable {...pressHaptic} style={pressed(styles.option)} onPress={p.onOpenBuilder}>
                 <Text style={styles.optionText}>+ Shape</Text>
               </Pressable>
             </View>
@@ -145,28 +146,28 @@ export function ToolBar(p: Props) {
           </View>
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             <View style={styles.optionRow}>
-              <Pressable style={pressed(styles.option)} onPress={() => p.onOpenColor('stamp')}>
+              <Pressable {...pressHaptic} style={pressed(styles.option)} onPress={() => p.onOpenColor('stamp')}>
                 <View style={[styles.colorDot, { backgroundColor: p.stamp.color }]} />
               </Pressable>
-              <Pressable
+              <Pressable {...pressHaptic}
                 style={pressed(styles.option)}
                 onPress={() => p.onStamp({ rotMode: cycle(ROTATION_ORDER, p.stamp.rotMode) })}
               >
                 <Text style={styles.optionText}>{ROTATION_LABEL[p.stamp.rotMode]}</Text>
               </Pressable>
-              <Pressable
+              <Pressable {...pressHaptic}
                 style={pressed(styles.option, p.stamp.jitter && styles.optionActive)}
                 onPress={() => p.onStamp({ jitter: !p.stamp.jitter })}
               >
                 <Text style={styles.optionText}>Jitter</Text>
               </Pressable>
-              <Pressable
+              <Pressable {...pressHaptic}
                 style={pressed(styles.option, p.stamp.symmetry !== 'off' && styles.optionActive)}
                 onPress={() => p.onStamp({ symmetry: cycle(SYMMETRY_ORDER, p.stamp.symmetry) })}
               >
                 <Text style={styles.optionText}>{SYMMETRY_LABEL[p.stamp.symmetry]}</Text>
               </Pressable>
-              <Pressable style={pressed(styles.option)} onPress={p.onNewLayer}>
+              <Pressable {...pressHaptic} style={pressed(styles.option)} onPress={p.onNewLayer}>
                 <Text style={styles.optionText}>New layer</Text>
               </Pressable>
             </View>
@@ -218,9 +219,9 @@ const styles = StyleSheet.create({
     padding: 2,
   },
   modeButton: { paddingHorizontal: 18, paddingVertical: 6, borderRadius: 6 },
-  modeButtonActive: { backgroundColor: color.chipActive },
+  modeButtonActive: { backgroundColor: color.chipActive, ...raised },
   modeText: { color: color.textDim, fontSize: type.md },
-  modeTextActive: { color: color.text, fontWeight: '600' },
+  modeTextActive: { color: color.accent, fontWeight: '600' },
   optionRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -233,11 +234,12 @@ const styles = StyleSheet.create({
     height: 34,
     borderRadius: 8,
     backgroundColor: color.chip,
+    ...raised,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 10,
   },
-  optionActive: { backgroundColor: color.chipActive, borderWidth: 1, borderColor: color.accent },
+  optionActive: { backgroundColor: color.chipActive },
   optionText: { color: color.textMid, fontSize: type.sm },
   hint: { color: color.warn, fontSize: type.xs, textAlign: 'center', paddingHorizontal: 16 },
   colorDot: {

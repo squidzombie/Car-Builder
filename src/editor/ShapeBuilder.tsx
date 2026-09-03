@@ -11,7 +11,8 @@ import { strokePathFromPoints } from '../renderer/strokePath'
 import { ShapeGlyph } from './ToolBar'
 import { MiniSlider } from './MiniSlider'
 import { Sheet } from './Sheet'
-import { color, pressed, radius, type } from './theme'
+import { color, pressed, radius, raised, type } from './theme'
+import { pressHaptic } from '../view/haptics'
 
 // Custom shape builder (CLAUDE.md §4). Two ways in:
 // - Polygon: sides 3–24, optional star inset, corner rounding.
@@ -140,7 +141,7 @@ export function ShapeBuilder({ onClose, onSaved }: Props) {
       closeLabel="Cancel"
       backdrop
       headerRight={
-        <Pressable
+        <Pressable {...pressHaptic}
           style={pressed(styles.saveButton, !canSave && styles.saveButtonDisabled)}
           hitSlop={8}
           disabled={!canSave}
@@ -152,7 +153,7 @@ export function ShapeBuilder({ onClose, onSaved }: Props) {
     >
       <View style={styles.tabRow}>
         {(['polygon', 'draw'] as const).map((m) => (
-          <Pressable
+          <Pressable {...pressHaptic}
             key={m}
             style={pressed(styles.tab, mode === m && styles.tabActive)}
             onPress={() => setMode(m)}
@@ -232,7 +233,7 @@ export function ShapeBuilder({ onClose, onSaved }: Props) {
                 {preview ? <ShapeGlyph shape={preview} size={64} /> : null}
               </View>
               {(['filled', 'ink'] as const).map((st) => (
-                <Pressable
+                <Pressable {...pressHaptic}
                   key={st}
                   style={pressed(styles.styleChip, drawStyle === st && styles.styleChipActive)}
                   onPress={() => setDrawStyle(st)}
@@ -244,7 +245,7 @@ export function ShapeBuilder({ onClose, onSaved }: Props) {
                   </Text>
                 </Pressable>
               ))}
-              <Pressable
+              <Pressable {...pressHaptic}
                 style={pressed(styles.clearButton)}
                 hitSlop={6}
                 disabled={strokes.length === 0}
@@ -276,6 +277,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderRadius: radius.md,
     backgroundColor: color.accent,
+    ...raised,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -289,9 +291,9 @@ const styles = StyleSheet.create({
     padding: 2,
   },
   tab: { paddingHorizontal: 18, paddingVertical: 6, borderRadius: radius.sm - 2 },
-  tabActive: { backgroundColor: color.chipActive },
+  tabActive: { backgroundColor: color.chipActive, ...raised },
   tabText: { color: color.textDim, fontSize: type.md },
-  tabTextActive: { color: color.text, fontWeight: '600' },
+  tabTextActive: { color: color.accent, fontWeight: '600' },
   previewRow: { alignItems: 'center' },
   previewBox: {
     width: 120,
@@ -338,6 +340,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderRadius: radius.md,
     backgroundColor: color.chip,
+    ...raised,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -347,10 +350,11 @@ const styles = StyleSheet.create({
     minWidth: 80,
     borderRadius: radius.md,
     backgroundColor: color.chip,
+    ...raised,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  styleChipActive: { backgroundColor: color.chipActive, borderWidth: 1, borderColor: color.accent },
+  styleChipActive: { backgroundColor: color.chipActive },
   styleChipText: { color: color.textDim, fontSize: type.md },
-  styleChipTextActive: { color: color.text, fontWeight: '600' },
+  styleChipTextActive: { color: color.accent, fontWeight: '600' },
 })

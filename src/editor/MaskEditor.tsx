@@ -7,7 +7,8 @@ import { layerBounds } from './bounds'
 import { ShapeGlyph } from './ToolBar'
 import { MiniSlider } from './MiniSlider'
 import { Sheet } from './Sheet'
-import { chip, chipActive, chipText, chipTextActive, color, pressed, radius } from './theme'
+import { chip, chipActive, chipText, chipTextActive, color, pressed, radius, raised } from './theme'
+import { pressHaptic } from '../view/haptics'
 
 // Mask editor (CLAUDE.md §4): linear/radial fades — the classic "player
 // fades into background" look — plus shape masks: clip the layer to a
@@ -60,7 +61,7 @@ export function MaskEditor({ layerId, onClose }: Props) {
           ).map(([type, label]) => {
             const active = type === 'none' ? !mask : mask?.type === type
             return (
-              <Pressable
+              <Pressable {...pressHaptic}
                 key={type}
                 style={pressed(styles.typeChip, active && styles.typeChipActive)}
                 onPress={() => {
@@ -104,7 +105,7 @@ export function MaskEditor({ layerId, onClose }: Props) {
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               <View style={styles.shapeRow}>
                 {allShapes.map((sh) => (
-                  <Pressable
+                  <Pressable {...pressHaptic}
                     key={sh.id}
                     style={pressed(styles.shapeChip, mask.assetId === sh.id && styles.shapeChipActive)}
                     onPress={() =>
@@ -213,6 +214,7 @@ const styles = StyleSheet.create({
     height: 36,
     borderRadius: radius.sm,
     backgroundColor: color.chip,
+    ...raised,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 8,

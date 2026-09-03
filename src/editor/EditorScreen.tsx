@@ -42,12 +42,12 @@ import { MaskEditor } from './MaskEditor'
 import { TextEditor } from './TextEditor'
 import { FinishEditor } from './FinishEditor'
 import { useDocImages } from '../view/useDocImages'
-import { tick } from '../view/haptics'
+import { pressHaptic, tick } from '../view/haptics'
 import { getAssetUri, registerAsset, setAssetUri } from '../model/assets'
 import { persistAsset } from '../model/storage'
 import { cutoutAvailable, liftSubject } from '../native/subjectCutout'
 import { ToolBar, type DrawSettings, type EditorMode, type StampSettings } from './ToolBar'
-import { color, pressed, type } from './theme'
+import { color, pressed, raised, type } from './theme'
 
 // Editor screen (M2 core + M3 tools, CLAUDE.md §4).
 // Select mode: tap-to-select, one-finger drag, two-finger pinch/twist on
@@ -779,13 +779,13 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
   return (
     <View style={styles.root}>
       <View style={styles.toolbar}>
-        <Pressable style={pressed(styles.toolButton)} onPress={onPreview} hitSlop={6}>
+        <Pressable {...pressHaptic} style={pressed(styles.toolButton)} onPress={onPreview} hitSlop={6}>
           <Text style={styles.toolText}>Preview</Text>
         </Pressable>
 
         <View style={styles.sideSwitch}>
           {(['front', 'back'] as const).map((s) => (
-            <Pressable
+            <Pressable {...pressHaptic}
               key={s}
               style={pressed(styles.sideOption, side === s && styles.sideOptionActive)}
               onPress={() => setSide(s)}
@@ -798,7 +798,7 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
         </View>
 
         <View style={styles.historyButtons}>
-          <Pressable
+          <Pressable {...pressHaptic}
             style={pressed(styles.toolButton)}
             hitSlop={6}
             disabled={!canUndo}
@@ -806,7 +806,7 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
           >
             <Feather name="corner-up-left" size={16} color={canUndo ? color.textMid : color.textGhost} />
           </Pressable>
-          <Pressable
+          <Pressable {...pressHaptic}
             style={pressed(styles.toolButton)}
             hitSlop={6}
             disabled={!canRedo}
@@ -896,7 +896,7 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
               </>
             ) : null}
             {view.scale > 1 ? (
-              <Pressable
+              <Pressable {...pressHaptic}
                 style={pressed(styles.zoomChip)}
                 hitSlop={6}
                 onPress={() => setView({ scale: 1, x: 0, y: 0 })}
@@ -944,12 +944,12 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
             {(((Math.abs(selected.transform.scaleX) + Math.abs(selected.transform.scaleY)) / 2)).toFixed(2)}
           </Text>
           {selected.type === 'text' ? (
-            <Pressable style={pressed(styles.propsAction)} hitSlop={6} onPress={() => setTextOpen(true)}>
+            <Pressable {...pressHaptic} style={pressed(styles.propsAction)} hitSlop={6} onPress={() => setTextOpen(true)}>
               <Text style={styles.propsActionText}>Edit</Text>
             </Pressable>
           ) : null}
           {selected.type === 'image' && cutoutAvailable() ? (
-            <Pressable style={pressed(styles.propsAction)} hitSlop={6} onPress={doCutout}>
+            <Pressable {...pressHaptic} style={pressed(styles.propsAction)} hitSlop={6} onPress={doCutout}>
               <Text style={styles.propsActionText}>
                 {cutoutState === 'working'
                   ? 'Cutting…'
@@ -959,14 +959,14 @@ export function EditorScreen({ onPreview }: { onPreview: () => void }) {
               </Text>
             </Pressable>
           ) : null}
-          <Pressable style={pressed(styles.propsAction)} hitSlop={6} onPress={() => setMaskOpen(true)}>
+          <Pressable {...pressHaptic} style={pressed(styles.propsAction)} hitSlop={6} onPress={() => setMaskOpen(true)}>
             <Text style={styles.propsActionText}>{selected.mask ? 'Mask ●' : 'Mask'}</Text>
           </Pressable>
-          <Pressable style={pressed(styles.propsAction)} hitSlop={6} onPress={() => setFxOpen(true)}>
+          <Pressable {...pressHaptic} style={pressed(styles.propsAction)} hitSlop={6} onPress={() => setFxOpen(true)}>
             <Text style={styles.propsActionText}>{selected.finish ? 'FX ●' : 'FX'}</Text>
           </Pressable>
           {selectedColor ? (
-            <Pressable style={pressed(styles.colorChipBack)} hitSlop={6} onPress={() => openPicker('layer')}>
+            <Pressable {...pressHaptic} style={pressed(styles.colorChipBack)} hitSlop={6} onPress={() => openPicker('layer')}>
               <View style={[styles.colorChip, { backgroundColor: selectedColor }]} />
             </Pressable>
           ) : null}
@@ -1106,6 +1106,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 16,
     backgroundColor: color.chip,
+    ...raised,
   },
   toolText: { color: color.textMid, fontSize: type.base },
   toolTextDisabled: { color: color.textGhost },
@@ -1117,9 +1118,9 @@ const styles = StyleSheet.create({
     padding: 2,
   },
   sideOption: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 14 },
-  sideOptionActive: { backgroundColor: color.chipActive },
+  sideOptionActive: { backgroundColor: color.chipActive, ...raised },
   sideText: { color: color.textDim, fontSize: type.md },
-  sideTextActive: { color: color.text },
+  sideTextActive: { color: color.accent, fontWeight: '600' },
   canvasArea: { flex: 1, overflow: 'hidden' },
   selection: {
     position: 'absolute',
@@ -1146,6 +1147,7 @@ const styles = StyleSheet.create({
     paddingVertical: 7,
     borderRadius: 14,
     backgroundColor: color.chipGlass,
+    ...raised,
   },
   zoomChipText: { color: color.textMid, fontSize: type.sm, fontVariant: ['tabular-nums'] },
   propsBar: {
@@ -1165,6 +1167,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 8,
     backgroundColor: color.chip,
+    ...raised,
   },
   propsActionText: { color: color.textMid, fontSize: type.sm },
   colorChipBack: {
