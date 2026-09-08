@@ -53,7 +53,8 @@ export function TextEditor({ layerId, onClose, onFrame }: Props) {
     useEditor.getState().updateLayer(layerId, fn, { transient })
   }
 
-  const outlineColors: Color[] = ['#000000', '#ffffff', ...pinned.slice(0, 5)]
+  // black, white, then the card's pins — deduped, since pins often include both
+  const outlineColors: Color[] = [...new Set<Color>(['#000000', '#ffffff', ...pinned.slice(0, 6)])]
   const shadowKey = t.shadow
     ? SHADOWS.find((s) => JSON.stringify(s.value) === JSON.stringify(t.shadow))?.key ?? 'custom'
     : 'none'

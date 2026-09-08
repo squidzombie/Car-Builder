@@ -1,4 +1,88 @@
-# START HERE — 2026-09-08: continue in a fresh Fable 5.1 chat
+# START HERE — 2026-09-08 (afternoon): M7 visual pass + review-3 batch landed
+
+Session on Fable 5.1. Commits on `claude/car-builder-handoff-zae22z`,
+pushed as squidzombie (`gh auth switch -u squidzombie` before any push).
+Tests 114/114, typecheck clean, emulator-verified (Pixel_7 + Expo Go):
+every sheet and bar, stacked text, offset drag, undo, template chooser,
+Condition sheet, canvas shifting under the Text/Mask/Appearance sheets.
+
+Max pasted a review list. The first six items were review-2 — already
+built 2026-09-03 and in TestFlight build e5186e60, awaiting his on-device
+verdict: scattered wear scratches, one-surface FX menu, charcoal base with
+blue as selection only, raised/pressed buttons + haptics, Appearance mode,
+bevel emboss (inset = light flipped). The rest were new and are built:
+- Borders run flush to the card edge and follow its corner radius
+  (presets/elements.ts `flushFrameShape`, evenodd; docs/borders/*.png).
+  Shaped frames (angle cut, notched, arch, scalloped) were already flush.
+- Text: `autoCapitalize="words"` (the forced-caps bug), Stacked
+  orientation (`text.orientation: 'v'`, one glyph per line, round-trip
+  test), Angle slider for free rotation in the Text sheet.
+- Offset dragging: with a selection, a drag from anywhere on the canvas
+  moves it (EditorScreen grant handler); a tap still selects/deselects.
+- Snapping: card-center lines 8px zone, other layers' centers 4px
+  (SNAP_CARD / SNAP_LAYER), "Snap" pill on the Select strip = override.
+- Sheet hiding the layer: Sheet reports its frame (`onFrame` →
+  measureInWindow, re-measured on keyboard show/hide); EditorScreen pans
+  and shrinks (min 0.5×, from the home scale) only as far as needed so the
+  selected layer sits above the sheet, goes back to the natural view when
+  that already shows it, restores on close (220 ms tween). Follow-up
+  idea: a collapsible sheet (drag handle → peek height) for the tallest
+  sheet, the Color tab.
+- Photo not displaying until Cut Out: useDocImages rewritten — one
+  module cache + listener set so any decode notifies every mounted hook,
+  and a failed decode retries once after 700 ms. Could NOT reproduce on
+  the emulator (the test photo drew on first load) — Max verifies on
+  iPhone; if it persists, log `Skia.Data.fromURI` failures for the
+  picker URI.
+- New Lattice finish (geometric mode 5): elongated diamond outlines,
+  stroke only, no fill; docs/finishes/geometric-lattice_*.png.
+
+M7 VISUAL MODERNIZATION PASS (ROADMAP) is DONE in the same batch:
+`src/editor/controls.tsx` (Segmented, Panel, Pill/PillRow/PillDivider,
+Tile/TileRow, StatusDot, Hint) + `panel`/`pill*`/`space` tokens in
+theme.ts; every sheet and bar is on them. Font pills render in their own
+typeface (expo-font `useFonts` in useBundledFonts, `FONT_CHOICES.family`);
+alignment, symmetry and stamp rotation are glyphs; mask types and text
+shadows are live preview tiles; palette mode is a color band; 1px-bordered
+chips are gone; the props bar uses StatusDots instead of "●"; the layer
+panel has a real empty state with an Add CTA. Sheets bleed 1px past
+both screen edges (marginHorizontal -1): layout rounding left a one-pixel
+column at x=0 where the selected layer row's accent bar showed through
+(raising the overlay's zIndex/elevation did nothing — it was geometry).
+
+Emulator gotchas learned today (keep):
+- `cmd //c start … npx expo start` did NOT start Metro; Expo Go then shows
+  "Something went wrong / Failed to download remote update". Run Metro as
+  a harness background task: `npx expo start --port 8081 < /dev/null >
+  metro.log 2>&1` (CI=1 also works but disables file watching). Then
+  `adb reverse tcp:8081 tcp:8081`, `adb shell am force-stop
+  host.exp.exponent`, `adb shell am start -a android.intent.action.VIEW -d
+  exp://127.0.0.1:8081`. A stale Expo Go error screen does NOT reload on a
+  new intent — force-stop first.
+- Free port 8081 with PowerShell `Get-NetTCPConnection -LocalPort 8081` +
+  `Stop-Process`; taskkill from bash choked on netstat's CR.
+- Bash tool commands over ~8 KB fail (Windows command-line limit): write
+  big files with the Write tool (memory: bash-command-size-limit).
+- Sheet positions shift as sheets grow/shrink — re-screenshot before
+  tapping coordinates.
+
+Open / for Max:
+- Verify on iPhone: the photo-display bug, tilt video export, subject
+  cutout (both still never run on hardware), recentering feel, the new
+  sheets, and canvas shifting with the keyboard up (Text sheet).
+- Shape masks stay in card space when the layer is dragged (the photo
+  moves under its window). Right for repositioning a photo inside a
+  circle, surprising for a masked name — Max's call whether the window
+  should travel with the layer.
+- Lattice density/line width tuning once he sees it on device.
+- Photo-first hero: still the open question from ROADMAP.
+
+Next TestFlight build: `npx eas-cli build -p ios --profile production &&
+npx eas-cli submit -p ios --latest` (TESTFLIGHT.md).
+
+---
+
+# Earlier — 2026-09-08 (morning): GitHub-account cleanup, no app code
 
 Session note: the prior chat kept flipping to Opus 4.8; Max wants Fable 5.1.
 No app code changed this session — it was GitHub-account cleanup only.

@@ -128,6 +128,10 @@ const styles = StyleSheet.create({
     top: 0,
     bottom: 0,
     justifyContent: 'flex-end',
+    // above every sibling on Android too (a selected layer row's accent
+    // bar otherwise bleeds through the sheet)
+    zIndex: 100,
+    elevation: 24,
   },
   backdrop: {
     position: 'absolute',
@@ -139,6 +143,9 @@ const styles = StyleSheet.create({
   },
   sheet: {
     backgroundColor: color.bg1,
+    // bleed a pixel past both edges: layout rounding otherwise leaves a
+    // one-pixel column at x=0 where the layer panel shows through
+    marginHorizontal: -1,
     borderTopLeftRadius: radius.xl,
     borderTopRightRadius: radius.xl,
     paddingTop: 10,

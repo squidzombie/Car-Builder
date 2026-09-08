@@ -138,14 +138,18 @@ per-screen tweaks.
   hero in the New-card chooser — built and working, but Max isn't sure
   about it. Evaluate after friends' feedback; trivial to demote to a
   secondary option or remove (TemplateChooser hero + App onPick intent).
-- M7 VISUAL MODERNIZATION PASS (Max 2026-09-02: "whole UI feels a bit
-  dated — not functionality, just visually"). Direction from the
-  approved FX picker v3: one-surface containment over faked joins,
-  soft filled pills over 1px-bordered chips, live visual previews
-  over text, radius.xl cards, more breathing room. Sweep every sheet
-  and bar (ToolBar options, Mask/Text/Builder sheets, props bar,
-  layer panel, preview buttons). Ask Max for reference apps or
-  screenshots he considers current before starting.
+- DONE 2026-09-08: M7 VISUAL MODERNIZATION PASS — shared controls
+  (src/editor/controls.tsx: Segmented, Panel, Pill, Tile, StatusDot)
+  applied to every sheet and bar; details in HANDOFF. Follow-ups:
+  collapsible sheet (peek height) for the tall Color tab; typography
+  and Liquid Glass still parked.
+- DONE 2026-09-08 (Max's review 3): flush borders following the card's
+  corner radius, stacked + free-rotated text, no forced caps, offset
+  dragging, snap zones + Snap override, canvas keeps the edited layer
+  above an open sheet, photo-decode robustness (bug not reproducible on
+  the emulator — Max verifies on iPhone), Lattice finish.
+  Open: should a shape-mask window travel with its layer when dragged
+  (today it stays in card space)? Lattice density/line-width tuning.
 
 ## Working notes
 

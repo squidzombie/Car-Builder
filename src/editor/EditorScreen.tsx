@@ -211,26 +211,38 @@ export function EditorScreen({
     if (!box || !cw || area.h === 0) return
     const covered = Math.max(0, cw.top + cw.height - sheetFrame.top)
     const visibleH = area.h - covered
-    if (visibleH < 90) return
-    const v = viewRef.current
-    const m = 20
-    const t = base * v.scale
-    const ox = (area.w - docW * t) / 2 + v.x
-    const oy = (area.h - docH * t) / 2 + v.y
-    const x0 = box.x * t + ox
-    const y0 = box.y * t + oy
-    const fits =
-      x0 >= m && x0 + box.w * t <= area.w - m && y0 >= m && y0 + box.h * t <= visibleH - m
-    if (fits) return
+    if (visibleH < 40) return
+    const m = Math.min(20, Math.floor(visibleH * 0.12))
+    const boxIn = (v: CanvasView) => {
+      const t = base * v.scale
+      const ox = (area.w - docW * t) / 2 + v.x
+      const oy = (area.h - docH * t) / 2 + v.y
+      const x0 = box.x * t + ox
+      const y0 = box.y * t + oy
+      return x0 >= m && x0 + box.w * t <= area.w - m && y0 >= m && y0 + box.h * t <= visibleH - m
+    }
+    // the natural (pre-sheet) view already shows the layer above this
+    // sheet: use it — a shorter sheet after a tall one goes back home
+    const home = savedView.current ?? viewRef.current
+    if (boxIn(home)) {
+      if (savedView.current) {
+        tweenView(savedView.current)
+        savedView.current = null
+      }
+      return
+    }
+    if (boxIn(viewRef.current)) return
+    // shrink only as far as the strip demands (from the home scale, so
+    // successive sheet changes never ratchet the card smaller)
     const need = Math.min(
       (area.w - 2 * m) / Math.max(1, box.w * base),
       (visibleH - 2 * m) / Math.max(1, box.h * base),
     )
-    const scale = Math.max(0.5, Math.min(v.scale, need))
+    const scale = Math.max(0.5, Math.min(home.scale, need))
     const nt = base * scale
     const cx = box.x + box.w / 2
     const cy = box.y + box.h / 2
-    if (!savedView.current) savedView.current = v
+    if (!savedView.current) savedView.current = viewRef.current
     tweenView({
       scale,
       x: area.w / 2 - cx * nt - (area.w - docW * nt) / 2,
