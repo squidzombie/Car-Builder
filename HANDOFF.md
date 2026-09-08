@@ -1,4 +1,47 @@
-# Handoff — 2026-09-03 (latest): recentering fix, video export, adjust, reorder, saved cards
+# START HERE — 2026-09-08: continue in a fresh Fable 5.1 chat
+
+Session note: the prior chat kept flipping to Opus 4.8; Max wants Fable 5.1.
+No app code changed this session — it was GitHub-account cleanup only.
+Another Claude Code instance may be open in this repo at the same time: if so,
+avoid editing the same files at once (last save wins; simultaneous git ops
+hit `.git/index.lock`).
+
+Repo state: branch `claude/car-builder-handoff-zae22z`, working tree clean,
+in sync with GitHub (0 ahead / 0 behind).
+
+PUSHING — IMPORTANT: git pushes as whichever `gh` account is active. This repo
+is `squidzombie/Car-Builder`; run `gh auth switch -u squidzombie` before any
+push (the other account, spacesintoplaces, is read-only here → 403). Active
+account was left on squidzombie at the end of the session.
+
+Backups done this session (these had been local-only): SlimeBall and
+slimeball-shell → private repos under squidzombie; hr → private repo under
+spacesintoplaces (Max's choice; hr's local origin now points there). A leftover
+`squidzombie/hr` can be deleted by Max in the GitHub UI (the CLI tokens lack
+`delete_repo` scope). Folders still only on disk (not git repos): like-kind,
+UnitAudit, usermanagement, OrGainEyes, cosmic-case-files, SettleAssets, KPI,
+Squidiablo, jit-setup.
+
+Latest build update is the 2026-09-03 section immediately below (recentering
+rest-detection, tilt video export, photo adjust, layer drag-reorder, saved-card
+actions; tests were 109/109). Next-build direction and open questions live in
+ROADMAP.md. Highlights:
+- VERIFY ON DEVICE next TestFlight build: tilt VIDEO EXPORT and SUBJECT CUTOUT
+  (both iOS-only, never run on hardware yet), plus recentering feel.
+- M7 VISUAL MODERNIZATION PASS (ROADMAP): the UI reads dated; sweep every sheet
+  and bar toward the approved FX-picker v3 language (one-surface containment,
+  soft filled pills, live previews, more breathing room). Ask Max for reference
+  apps he considers current before starting.
+- OPEN QUESTION: the photo-first "Start with a photo" hero — built and working,
+  Max unsure; evaluate after friends' feedback, trivial to demote or remove.
+- M7 remainder: store assets, empty states.
+
+If Max has NEW notes for the next build, paste them into the fresh chat —
+they were not captured in this session.
+
+---
+
+# Handoff — 2026-09-03: recentering fix, video export, adjust, reorder, saved cards
 
 - Tilt recentering rebuilt as REST DETECTION (tiltMath.ts): no drift
   while moving, settles in ~1.1s tau once held still ≥500ms, fast
