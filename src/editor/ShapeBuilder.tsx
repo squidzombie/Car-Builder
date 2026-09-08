@@ -11,6 +11,7 @@ import { strokePathFromPoints } from '../renderer/strokePath'
 import { ShapeGlyph } from './ToolBar'
 import { MiniSlider } from './MiniSlider'
 import { Sheet } from './Sheet'
+import { Segmented } from './controls'
 import { color, pressed, radius, raised, type } from './theme'
 import { pressHaptic } from '../view/haptics'
 
@@ -151,19 +152,14 @@ export function ShapeBuilder({ onClose, onSaved }: Props) {
         </Pressable>
       }
     >
-      <View style={styles.tabRow}>
-        {(['polygon', 'draw'] as const).map((m) => (
-          <Pressable {...pressHaptic}
-            key={m}
-            style={pressed(styles.tab, mode === m && styles.tabActive)}
-            onPress={() => setMode(m)}
-          >
-            <Text style={[styles.tabText, mode === m && styles.tabTextActive]}>
-              {m === 'polygon' ? 'Polygon' : 'Draw'}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
+      <Segmented<'polygon' | 'draw'>
+        items={[
+          { key: 'polygon', label: 'Polygon' },
+          { key: 'draw', label: 'Draw' },
+        ]}
+        value={mode}
+        onChange={setMode}
+      />
 
       {mode === 'polygon' ? (
         <>
@@ -232,19 +228,16 @@ export function ShapeBuilder({ onClose, onSaved }: Props) {
               <View style={styles.previewBoxSmall}>
                 {preview ? <ShapeGlyph shape={preview} size={64} /> : null}
               </View>
-              {(['filled', 'ink'] as const).map((st) => (
-                <Pressable {...pressHaptic}
-                  key={st}
-                  style={pressed(styles.styleChip, drawStyle === st && styles.styleChipActive)}
-                  onPress={() => setDrawStyle(st)}
-                >
-                  <Text
-                    style={[styles.styleChipText, drawStyle === st && styles.styleChipTextActive]}
-                  >
-                    {st === 'filled' ? 'Filled' : 'Ink'}
-                  </Text>
-                </Pressable>
-              ))}
+              <Segmented<'filled' | 'ink'>
+                items={[
+                  { key: 'filled', label: 'Filled' },
+                  { key: 'ink', label: 'Ink' },
+                ]}
+                value={drawStyle}
+                onChange={setDrawStyle}
+                vertical
+                stretch
+              />
               <Pressable {...pressHaptic}
                 style={pressed(styles.clearButton)}
                 hitSlop={6}
@@ -283,17 +276,6 @@ const styles = StyleSheet.create({
   },
   saveButtonDisabled: { opacity: 0.35 },
   saveText: { color: color.onAccent, fontSize: type.base, fontWeight: '700' },
-  tabRow: {
-    flexDirection: 'row',
-    alignSelf: 'center',
-    backgroundColor: color.track,
-    borderRadius: radius.sm,
-    padding: 2,
-  },
-  tab: { paddingHorizontal: 18, paddingVertical: 6, borderRadius: radius.sm - 2 },
-  tabActive: { backgroundColor: color.chipActive, ...raised },
-  tabText: { color: color.textDim, fontSize: type.md },
-  tabTextActive: { color: color.accent, fontWeight: '600' },
   previewRow: { alignItems: 'center' },
   previewBox: {
     width: 120,
@@ -345,16 +327,4 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   clearText: { color: color.textMid, fontSize: type.md },
-  styleChip: {
-    minHeight: 34,
-    minWidth: 80,
-    borderRadius: radius.md,
-    backgroundColor: color.chip,
-    ...raised,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  styleChipActive: { backgroundColor: color.chipActive },
-  styleChipText: { color: color.textDim, fontSize: type.md },
-  styleChipTextActive: { color: color.accent, fontWeight: '600' },
 })

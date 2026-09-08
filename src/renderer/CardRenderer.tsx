@@ -491,31 +491,28 @@ function LayerContent({
         if (!fallback) return null
         font = Skia.Font(fallback, t.size)
       }
-      let x = 0
-      if (t.align !== 'l') {
-        // measureText is a not-implemented stub on RN Skia web (throwing
-        // inside the render blanks the whole canvas); getTextWidth works
-        // everywhere via glyph widths
-        const width =
-          Platform.OS === 'web'
-            ? font.getTextWidth(t.content)
-            : font.measureText(t.content).width
-        x = t.align === 'c' ? -width / 2 : -width
-      }
+      // measureText is a not-implemented stub on RN Skia web (throwing
+      // inside the render blanks the whole canvas); getTextWidth works
+      // everywhere via glyph widths
+      const f = font
+      const measure = (s: string) =>
+        Platform.OS === 'web' ? f.getTextWidth(s) : f.measureText(s).width
+      const anchorX = (s: string) =>
+        t.align === 'l' ? 0 : t.align === 'c' ? -measure(s) / 2 : -measure(s)
       // outline is a stroked pass behind the fill; the shadow hangs off
       // whichever pass is the outer silhouette
       const outline = t.outline && t.outline.width > 0 ? t.outline : undefined
       const shadow = t.shadow ? (
         <Shadow dx={t.shadow.dx} dy={t.shadow.dy} blur={t.shadow.blur} color={t.shadow.color} />
       ) : null
-      return (
-        <>
+      const run = (text: string, x: number, y: number, key?: number) => (
+        <React.Fragment key={key}>
           {outline ? (
             <SkiaText
               x={x}
-              y={0}
-              text={t.content}
-              font={font}
+              y={y}
+              text={text}
+              font={f}
               color={outline.color}
               style="stroke"
               strokeWidth={outline.width}
@@ -525,11 +522,16 @@ function LayerContent({
               {shadow}
             </SkiaText>
           ) : null}
-          <SkiaText x={x} y={0} text={t.content} font={font} color={t.color}>
+          <SkiaText x={x} y={y} text={text} font={f} color={t.color}>
             {outline ? null : shadow}
           </SkiaText>
-        </>
+        </React.Fragment>
       )
+      if (t.orientation === 'v') {
+        // stacked: one glyph per line, top to bottom, each on the anchor
+        return <>{Array.from(t.content).map((ch, i) => run(ch, anchorX(ch), i * t.size, i))}</>
+      }
+      return run(t.content, anchorX(t.content), 0)
     }
     default:
       return null

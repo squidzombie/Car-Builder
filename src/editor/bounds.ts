@@ -58,6 +58,13 @@ function localBounds(layer: Layer, doc: CardDocument): Box {
     case 'text': {
       const t = layer.text!
       // crude glyph-average estimate; good enough for selection
+      if (t.orientation === 'v') {
+        // stacked: one glyph per line, the anchor is the top glyph's baseline
+        const n = Math.max(1, Array.from(t.content).length)
+        const width = t.size * 0.72
+        const x = t.align === 'c' ? -width / 2 : t.align === 'r' ? -width : 0
+        return { x, y: -t.size, w: width, h: t.size * (n - 1) + t.size * 1.3 }
+      }
       const width = t.content.length * t.size * 0.58
       const x = t.align === 'c' ? -width / 2 : t.align === 'r' ? -width : 0
       return { x, y: -t.size, w: width, h: t.size * 1.3 }

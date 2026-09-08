@@ -1,11 +1,12 @@
 import React, { useState } from 'react'
-import { Pressable, StyleSheet, Text, View } from 'react-native'
+import { Pressable, StyleSheet, Text } from 'react-native'
 import type { Color, Layer } from '../model/types'
 import { useEditor } from '../state/useEditor'
-import { Sheet } from './Sheet'
+import { Sheet, type SheetFrame } from './Sheet'
 import { ColorPickerBody } from './ColorPicker'
 import { FinishSection, SurfaceSection } from './FinishEditor'
 import { MiniSlider } from './MiniSlider'
+import { Segmented } from './controls'
 import { color, pressed, radius, raised, type } from './theme'
 import { pressHaptic } from '../view/haptics'
 
@@ -31,9 +32,17 @@ type Props = {
   color: ColorProps | null
   onClose: () => void
   onTabChange?: (tab: AppearanceTab) => void
+  onFrame?: (f: SheetFrame | null) => void
 }
 
-export function AppearanceSheet({ layerId, initialTab, color: colorProps, onClose, onTabChange }: Props) {
+export function AppearanceSheet({
+  layerId,
+  initialTab,
+  color: colorProps,
+  onClose,
+  onTabChange,
+  onFrame,
+}: Props) {
   const side = useEditor((s) => s.side)
   const layer = useEditor((s) => s.doc[side].layers.find((l) => l.id === layerId))
   const isImage = layer?.type === 'image'
@@ -57,22 +66,8 @@ export function AppearanceSheet({ layerId, initialTab, color: colorProps, onClos
   ]
 
   return (
-    <Sheet title={`Appearance · ${layer.name}`} onClose={onClose}>
-      <View style={styles.segments}>
-        {tabs.map((t) => {
-          const active = tab === t.key
-          return (
-            <Pressable
-              {...pressHaptic}
-              key={t.key}
-              style={pressed(styles.segment, active && styles.segmentActive)}
-              onPress={() => setTab(t.key)}
-            >
-              <Text style={[styles.segmentText, active && styles.segmentTextActive]}>{t.label}</Text>
-            </Pressable>
-          )
-        })}
-      </View>
+    <Sheet title={`Appearance · ${layer.name}`} onClose={onClose} onFrame={onFrame}>
+      <Segmented<AppearanceTab> items={tabs} value={tab} onChange={setTab} stretch />
 
       {tab === 'color' && colorProps ? <ColorPickerBody {...colorProps} /> : null}
       {tab === 'adjust' && isImage ? <AdjustSection layerId={layerId} /> : null}
@@ -141,23 +136,6 @@ function AdjustSection({ layerId }: { layerId: string }) {
 }
 
 const styles = StyleSheet.create({
-  segments: {
-    flexDirection: 'row',
-    backgroundColor: color.track,
-    borderRadius: radius.md,
-    padding: 3,
-    gap: 2,
-  },
-  segment: {
-    flex: 1,
-    minHeight: 34,
-    borderRadius: radius.sm,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  segmentActive: { backgroundColor: color.chipActive, ...raised },
-  segmentText: { color: color.textDim, fontSize: type.md },
-  segmentTextActive: { color: color.accent, fontWeight: '600' },
   reset: {
     alignSelf: 'center',
     minHeight: 34,

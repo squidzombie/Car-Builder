@@ -48,6 +48,8 @@ import { getAssetUri, registerAsset, setAssetUri } from '../model/assets'
 import { persistAsset } from '../model/storage'
 import { cutoutAvailable, liftSubject } from '../native/subjectCutout'
 import { ToolBar, type DrawSettings, type EditorMode, type StampSettings } from './ToolBar'
+import { Segmented, StatusDot } from './controls'
+import type { SheetFrame } from './Sheet'
 import { color, pressed, raised, type } from './theme'
 
 // Editor screen (M2 core + M3 tools, CLAUDE.md §4).
@@ -58,6 +60,12 @@ import { color, pressed, raised, type } from './theme'
 
 const TAP_SLOP = 8
 const MAX_ZOOM = 8
+// alignment snapping zones, in screen px: the card's center lines pull
+// from further than other layers' centers do (feedback: snapping fought
+// the drag — too many magnets, all equally strong)
+const SNAP_CARD = 8
+const SNAP_LAYER = 4
+type SnapLine = { at: number; th: number }
 
 // rotate-handle placement (shared by the responder and the render):
 // centered above the selection box, flipped below it near the top edge
@@ -151,6 +159,85 @@ export function EditorScreen({
   // one sheet; the value is the tab it opened on (null = closed)
   const [appearance, setAppearance] = useState<AppearanceTab | null>(null)
   const appearanceTabRef = useRef<AppearanceTab>('color')
+
+  // alignment snapping while dragging — the toolbar's Snap pill is the override
+  const [snapOn, setSnapOn] = useState(true)
+  const snapRef = useRef(true)
+  snapRef.current = snapOn
+
+  // ---- keep the edited layer visible above an open sheet ----
+  // A sheet covers the lower part of the canvas. When the selected layer
+  // sits under it, pan (and shrink only as far as needed) so the layer
+  // shows above the sheet while it is open; restore the view on close.
+  const [sheetFrame, setSheetFrameState] = useState<SheetFrame | null>(null)
+  const setSheetFrame = (f: SheetFrame | null) =>
+    setSheetFrameState((prev) =>
+      prev && f && prev.top === f.top && prev.height === f.height ? prev : f,
+    )
+  const canvasAreaRef = useRef<View>(null)
+  const canvasWin = useRef<{ top: number; height: number } | null>(null)
+  const savedView = useRef<CanvasView | null>(null)
+  const selectionBoxRef = useRef(selectionBox)
+  selectionBoxRef.current = selectionBox
+  const tweenRaf = useRef(0)
+  const tweenView = (to: CanvasView) => {
+    cancelAnimationFrame(tweenRaf.current)
+    const from = viewRef.current
+    const t0 = Date.now()
+    const step = () => {
+      const k = Math.min(1, (Date.now() - t0) / 220)
+      const e = 1 - Math.pow(1 - k, 3)
+      setView({
+        scale: from.scale + (to.scale - from.scale) * e,
+        x: from.x + (to.x - from.x) * e,
+        y: from.y + (to.y - from.y) * e,
+      })
+      if (k < 1) tweenRaf.current = requestAnimationFrame(step)
+    }
+    step()
+  }
+  useEffect(() => () => cancelAnimationFrame(tweenRaf.current), [])
+  const sheetOpen = maskOpen || textOpen || appearance !== null
+  useEffect(() => {
+    if (!sheetOpen || !sheetFrame) {
+      if (savedView.current) {
+        tweenView(savedView.current)
+        savedView.current = null
+      }
+      return
+    }
+    const box = selectionBoxRef.current
+    const cw = canvasWin.current
+    if (!box || !cw || area.h === 0) return
+    const covered = Math.max(0, cw.top + cw.height - sheetFrame.top)
+    const visibleH = area.h - covered
+    if (visibleH < 90) return
+    const v = viewRef.current
+    const m = 20
+    const t = base * v.scale
+    const ox = (area.w - docW * t) / 2 + v.x
+    const oy = (area.h - docH * t) / 2 + v.y
+    const x0 = box.x * t + ox
+    const y0 = box.y * t + oy
+    const fits =
+      x0 >= m && x0 + box.w * t <= area.w - m && y0 >= m && y0 + box.h * t <= visibleH - m
+    if (fits) return
+    const need = Math.min(
+      (area.w - 2 * m) / Math.max(1, box.w * base),
+      (visibleH - 2 * m) / Math.max(1, box.h * base),
+    )
+    const scale = Math.max(0.5, Math.min(v.scale, need))
+    const nt = base * scale
+    const cx = box.x + box.w / 2
+    const cy = box.y + box.h / 2
+    if (!savedView.current) savedView.current = v
+    tweenView({
+      scale,
+      x: area.w / 2 - cx * nt - (area.w - docW * nt) / 2,
+      y: visibleH / 2 - cy * nt - (area.h - docH * nt) / 2,
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sheetOpen, sheetFrame, selectedId])
 
   // subject lift (iOS 17+ builds only; hidden elsewhere)
   const [cutoutState, setCutoutState] = useState<'idle' | 'working' | 'none'>('idle')
@@ -331,8 +418,8 @@ export function EditorScreen({
     cx: number
     cy: number
     /** alignment lines to snap to: card center + other layers' centers */
-    linesX: number[]
-    linesY: number[]
+    linesX: SnapLine[]
+    linesY: SnapLine[]
   } | null>(null)
   // snapping guides drawn while a drag is magnetized (doc-space lines)
   const [guides, setGuides] = useState<{ v: number | null; h: number | null } | null>(null)
@@ -652,27 +739,29 @@ export function EditorScreen({
               }
             }
           }
-          if (p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h) {
-            const linesX = [docW / 2]
-            const linesY = [docH / 2]
-            for (const other of s.doc[s.side].layers) {
-              if (other.id === sel.id || !other.visible || other.type === 'fill') continue
-              const ob = layerBounds(other, s.doc)
-              linesX.push(ob.x + ob.w / 2)
-              linesY.push(ob.y + ob.h / 2)
-            }
-            drag.current = {
-              id: sel.id,
-              startX: sel.transform.x,
-              startY: sel.transform.y,
-              cx: b.x + b.w / 2,
-              cy: b.y + b.h / 2,
-              linesX,
-              linesY,
-            }
-            s.beginGesture()
-            gestureStarted.current = true
+          // move the layer — from inside its box, or from anywhere else
+          // on the canvas (offset drag: the finger needn't cover the layer,
+          // so you can see what you're placing). A plain tap still
+          // re-selects on release.
+          const linesX: SnapLine[] = [{ at: docW / 2, th: SNAP_CARD }]
+          const linesY: SnapLine[] = [{ at: docH / 2, th: SNAP_CARD }]
+          for (const other of s.doc[s.side].layers) {
+            if (other.id === sel.id || !other.visible || other.type === 'fill') continue
+            const ob = layerBounds(other, s.doc)
+            linesX.push({ at: ob.x + ob.w / 2, th: SNAP_LAYER })
+            linesY.push({ at: ob.y + ob.h / 2, th: SNAP_LAYER })
           }
+          drag.current = {
+            id: sel.id,
+            startX: sel.transform.x,
+            startY: sel.transform.y,
+            cx: b.x + b.w / 2,
+            cy: b.y + b.h / 2,
+            linesX,
+            linesY,
+          }
+          s.beginGesture()
+          gestureStarted.current = true
         }
       },
       onPanResponderMove: (e, g) => {
@@ -798,29 +887,31 @@ export function EditorScreen({
           const { id, startX, startY, cx, cy, linesX, linesY } = drag.current
           let dx = g.dx / o.t
           let dy = g.dy / o.t
-          // snapping: magnetize the layer's center to the card center or
-          // another layer's center when within a few screen px
-          const th = 8 / o.t
+          // snapping: magnetize the layer's center to the card center (a
+          // wider zone) or another layer's center (a narrow one) — unless
+          // the Snap pill is off
           let snapV: number | null = null
           let snapH: number | null = null
-          let best = th
-          for (const lx of linesX) {
-            const d = Math.abs(cx + dx - lx)
-            if (d < best) {
-              best = d
-              snapV = lx
+          if (snapRef.current) {
+            let best = Infinity
+            for (const l of linesX) {
+              const d = Math.abs(cx + dx - l.at)
+              if (d < l.th / o.t && d < best) {
+                best = d
+                snapV = l.at
+              }
             }
-          }
-          if (snapV !== null) dx += snapV - (cx + dx)
-          best = th
-          for (const ly of linesY) {
-            const d = Math.abs(cy + dy - ly)
-            if (d < best) {
-              best = d
-              snapH = ly
+            if (snapV !== null) dx = snapV - cx
+            best = Infinity
+            for (const l of linesY) {
+              const d = Math.abs(cy + dy - l.at)
+              if (d < l.th / o.t && d < best) {
+                best = d
+                snapH = l.at
+              }
             }
+            if (snapH !== null) dy = snapH - cy
           }
-          if (snapH !== null) dy += snapH - (cy + dy)
           setGuideLines(snapV, snapH)
           sessionTransformed.current = true
           s.updateLayer(
@@ -900,19 +991,15 @@ export function EditorScreen({
           <Text style={styles.toolText}>Preview</Text>
         </Pressable>
 
-        <View style={styles.sideSwitch}>
-          {(['front', 'back'] as const).map((s) => (
-            <Pressable {...pressHaptic}
-              key={s}
-              style={pressed(styles.sideOption, side === s && styles.sideOptionActive)}
-              onPress={() => setSide(s)}
-            >
-              <Text style={[styles.sideText, side === s && styles.sideTextActive]}>
-                {s === 'front' ? 'Front' : 'Back'}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
+        <Segmented<'front' | 'back'>
+          items={[
+            { key: 'front', label: 'Front' },
+            { key: 'back', label: 'Back' },
+          ]}
+          value={side}
+          onChange={(s) => setSide(s)}
+          compact
+        />
 
         <View style={styles.historyButtons}>
           <Pressable {...pressHaptic}
@@ -935,10 +1022,14 @@ export function EditorScreen({
       </View>
 
       <View
+        ref={canvasAreaRef}
         style={styles.canvasArea}
-        onLayout={(e) =>
+        onLayout={(e) => {
           setArea({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })
-        }
+          canvasAreaRef.current?.measureInWindow((_x, y, _w, h) => {
+            canvasWin.current = { top: y, height: h }
+          })
+        }}
         {...panResponder.panHandlers}
       >
         {area.w > 0 && area.h > 0 ? (
@@ -1061,6 +1152,8 @@ export function EditorScreen({
         onStamp={(patch) => setStamp((st) => ({ ...st, ...patch }))}
         shapes={allShapes}
         drawTargetSelected={selected?.type === 'path'}
+        snap={snapOn}
+        onSnap={setSnapOn}
         onOpenColor={openPicker}
         onNewLayer={() => useEditor.getState().select(null)}
         onOpenBuilder={() => {
@@ -1094,8 +1187,9 @@ export function EditorScreen({
               </Text>
             </Pressable>
           ) : null}
-          <Pressable {...pressHaptic} style={pressed(styles.propsAction)} hitSlop={6} onPress={() => setMaskOpen(true)}>
-            <Text style={styles.propsActionText}>{selected.mask ? 'Mask ●' : 'Mask'}</Text>
+          <Pressable {...pressHaptic} style={pressed(styles.propsAction, styles.appearanceAction)} hitSlop={6} onPress={() => setMaskOpen(true)}>
+            <Text style={styles.propsActionText}>Mask</Text>
+            {selected.mask ? <StatusDot /> : null}
           </Pressable>
           <Pressable {...pressHaptic} style={pressed(styles.propsAction, styles.appearanceAction)} hitSlop={6} onPress={openAppearance}>
             {selectedColor ? (
@@ -1103,9 +1197,8 @@ export function EditorScreen({
                 <View style={[styles.colorDot, { backgroundColor: selectedColor }]} />
               </View>
             ) : null}
-            <Text style={styles.propsActionText}>
-              {selected.finish || selected.emboss ? 'Appearance ●' : 'Appearance'}
-            </Text>
+            <Text style={styles.propsActionText}>Appearance</Text>
+            {selected.finish || selected.emboss ? <StatusDot /> : null}
           </Pressable>
         </View>
       ) : null}
@@ -1145,7 +1238,7 @@ export function EditorScreen({
       ) : null}
 
       {maskOpen && selected ? (
-        <MaskEditor layerId={selected.id} onClose={() => setMaskOpen(false)} />
+        <MaskEditor layerId={selected.id} onClose={() => setMaskOpen(false)} onFrame={setSheetFrame} />
       ) : null}
 
       {appearance && selected && !eyedropping ? (
@@ -1167,11 +1260,12 @@ export function EditorScreen({
             appearanceTabRef.current = t
             setAppearance(t)
           }}
+          onFrame={setSheetFrame}
         />
       ) : null}
 
       {textOpen && selected?.type === 'text' ? (
-        <TextEditor layerId={selected.id} onClose={() => setTextOpen(false)} />
+        <TextEditor layerId={selected.id} onClose={() => setTextOpen(false)} onFrame={setSheetFrame} />
       ) : null}
 
       {builderOpen ? (
@@ -1268,16 +1362,6 @@ const styles = StyleSheet.create({
   toolText: { color: color.textMid, fontSize: type.base },
   toolTextDisabled: { color: color.textGhost },
   historyButtons: { flexDirection: 'row', gap: 8 },
-  sideSwitch: {
-    flexDirection: 'row',
-    backgroundColor: color.track,
-    borderRadius: 16,
-    padding: 2,
-  },
-  sideOption: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 14 },
-  sideOptionActive: { backgroundColor: color.chipActive, ...raised },
-  sideText: { color: color.textDim, fontSize: type.md },
-  sideTextActive: { color: color.accent, fontWeight: '600' },
   canvasArea: { flex: 1, overflow: 'hidden' },
   selection: {
     position: 'absolute',

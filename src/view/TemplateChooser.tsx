@@ -21,7 +21,8 @@ import { registerAsset, setAssetUri } from '../model/assets'
 import { cutoutAvailable, liftSubject } from '../native/subjectCutout'
 import { useDocImages } from './useDocImages'
 import { Sheet } from '../editor/Sheet'
-import { chip, chipActive, chipText, chipTextActive, color, pressed, radius, raised, type } from '../editor/theme'
+import { Panel, Pill, PillRow } from '../editor/controls'
+import { color, pressed, radius, raised, type } from '../editor/theme'
 import { pressHaptic, tick } from './haptics'
 
 // New-card chooser (M5, §8) with the photo-first quick flow: pick a photo
@@ -157,28 +158,22 @@ export function TemplateChooser({ onPick, onOpenSaved, onClose }: Props) {
         </Pressable>
 
         {photo && cutoutAvailable() ? (
-          <View style={styles.cutRow}>
-            <Pressable
-              {...pressHaptic}
-              style={pressed(styles.chip, !photo.cutout && styles.chipActive)}
-              onPress={() => original && setPhoto(original)}
-            >
-              <Text style={[styles.chipText, !photo.cutout && styles.chipTextActive]}>Photo as-is</Text>
-            </Pressable>
-            <Pressable
-              {...pressHaptic}
-              style={pressed(styles.chip, photo.cutout && styles.chipActive)}
-              onPress={photo.cutout ? undefined : cutOut}
-            >
-              <Text style={[styles.chipText, photo.cutout && styles.chipTextActive]}>
-                {cutState === 'working'
-                  ? 'Lifting subject…'
-                  : cutState === 'none'
-                    ? 'No subject found'
-                    : 'Cut out subject'}
-              </Text>
-            </Pressable>
-          </View>
+          <Panel style={styles.cutPanel}>
+            <PillRow>
+              <Pill label="Photo as-is" active={!photo.cutout} onPress={() => original && setPhoto(original)} />
+              <Pill
+                label={
+                  cutState === 'working'
+                    ? 'Lifting subject…'
+                    : cutState === 'none'
+                      ? 'No subject found'
+                      : 'Cut out subject'
+                }
+                active={photo.cutout}
+                onPress={photo.cutout ? undefined : cutOut}
+              />
+            </PillRow>
+          </Panel>
         ) : null}
 
         {saved.length > 0 && !photo ? (
@@ -202,7 +197,7 @@ export function TemplateChooser({ onPick, onOpenSaved, onClose }: Props) {
               </View>
             </ScrollView>
             {managing ? (
-              <View style={styles.manageBar}>
+              <Panel style={styles.manageBar}>
                 {renameDraft !== null ? (
                   <TextInput
                     style={styles.renameInput}
@@ -216,38 +211,14 @@ export function TemplateChooser({ onPick, onOpenSaved, onClose }: Props) {
                     selectTextOnFocus
                   />
                 ) : (
-                  <>
-                    <Pressable
-                      {...pressHaptic}
-                      style={pressed(styles.chip)}
-                      onPress={() => onOpenSaved(managing)}
-                    >
-                      <Text style={styles.chipText}>Open</Text>
-                    </Pressable>
-                    <Pressable
-                      {...pressHaptic}
-                      style={pressed(styles.chip)}
-                      onPress={() => setRenameDraft(title(managing))}
-                    >
-                      <Text style={styles.chipText}>Rename</Text>
-                    </Pressable>
-                    <Pressable
-                      {...pressHaptic}
-                      style={pressed(styles.chip)}
-                      onPress={() => duplicateSaved(managing)}
-                    >
-                      <Text style={styles.chipText}>Duplicate</Text>
-                    </Pressable>
-                    <Pressable
-                      {...pressHaptic}
-                      style={pressed(styles.chip)}
-                      onPress={() => confirmDelete(managing)}
-                    >
-                      <Text style={[styles.chipText, { color: color.danger }]}>Delete</Text>
-                    </Pressable>
-                  </>
+                  <PillRow scroll>
+                    <Pill label="Open" onPress={() => onOpenSaved(managing)} />
+                    <Pill label="Rename" onPress={() => setRenameDraft(title(managing))} />
+                    <Pill label="Duplicate" onPress={() => duplicateSaved(managing)} />
+                    <Pill label="Delete" danger onPress={() => confirmDelete(managing)} />
+                  </PillRow>
                 )}
-              </View>
+              </Panel>
             ) : null}
           </>
         ) : null}
@@ -273,7 +244,7 @@ function TemplateTile({ name, doc, onPick }: { name: string; doc: CardDocument; 
   const assets = useDocImages(doc)
   return (
     <Pressable {...pressHaptic} style={pressed(styles.tile)} onPress={onPick}>
-      <View style={styles.tileCard}>
+      <View style={[styles.tileRing, styles.tileCard]}>
         <Canvas style={{ width: TILE_W, height: TILE_H }}>
           <Group>
             <CardRenderer
@@ -305,9 +276,7 @@ function SavedTile({
   const assets = useDocImages(doc)
   return (
     <Pressable {...pressHaptic} style={pressed(styles.tile)} onPress={onOpen} onLongPress={onHold}>
-      <View
-        style={[styles.tileCard, { width: MINI_W, height: MINI_H }, managing && styles.tileManaging]}
-      >
+      <View style={[styles.tileRing, styles.tileCard, managing && styles.tileRingActive]}>
         <Canvas style={{ width: MINI_W, height: MINI_H }}>
           <Group>
             <CardRenderer
@@ -350,11 +319,7 @@ const styles = StyleSheet.create({
   heroText: { flex: 1, gap: 2 },
   heroTitle: { color: color.text, fontSize: type.lg, fontWeight: '600' },
   heroSub: { color: color.textDim, fontSize: type.sm },
-  cutRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
-  chip,
-  chipActive,
-  chipText,
-  chipTextActive,
+  cutPanel: { marginBottom: 12 },
   sectionTitle: { color: color.textDim, fontSize: type.sm, marginBottom: 8 },
   grid: {
     flexDirection: 'row',
@@ -363,26 +328,27 @@ const styles = StyleSheet.create({
     rowGap: 16,
   },
   tile: { alignItems: 'center', gap: 6 },
-  tileCard: {
-    width: TILE_W,
-    height: TILE_H,
-    borderRadius: 10,
+  // the selection ring sits outside the card so choosing never reflows
+  tileRing: {
+    borderRadius: radius.lg,
     overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: color.hairlineBright,
+    borderWidth: 2,
+    borderColor: 'transparent',
+    backgroundColor: color.bg2,
   },
+  tileRingActive: { borderColor: color.accent },
+  tileCard: {},
   tileLabel: { color: color.textMid, fontSize: type.md },
-  tileManaging: { borderColor: color.accent, borderWidth: 2 },
   hint: { color: color.textGhost, fontSize: type.xs, textAlign: 'center', paddingTop: 12 },
   shelf: { flexDirection: 'row', gap: 12, paddingVertical: 2, marginBottom: 12 },
-  manageBar: { flexDirection: 'row', gap: 8, alignItems: 'center', marginBottom: 14 },
+  manageBar: { marginBottom: 14 },
   renameInput: {
-    flex: 1,
     color: color.text,
     fontSize: type.base,
     backgroundColor: color.chip,
     borderRadius: radius.md,
     paddingHorizontal: 12,
     paddingVertical: 9,
+    margin: 8,
   },
 })

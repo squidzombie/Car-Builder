@@ -24,7 +24,8 @@ import {
 } from '../state/editorStore'
 import { Sheet } from './Sheet'
 import { ShapeGlyph } from './ToolBar'
-import { color, radius, type } from './theme'
+import { color, pressed, radius, raised, type } from './theme'
+import { pressHaptic } from '../view/haptics'
 
 // The sectioned Add sheet (Build 3): everything addable in one place —
 // media, text, fills, the full shape library, custom shapes. Build 5's
@@ -111,14 +112,15 @@ export function AddSheet({ onClose, onOpenBuilder }: Props) {
         <View style={styles.shapeGrid}>
           {[...BUILTIN_SHAPES, ...customShapes].map((s) => (
             <Pressable
+              {...pressHaptic}
               key={s.id}
-              style={styles.shapeTile}
+              style={pressed(styles.shapeTile)}
               onPress={() => add(() => makeShapeLayer(s.id, { color: DEFAULT_SHAPE_COLOR }))}
             >
               <ShapeGlyph shape={s} size={26} />
             </Pressable>
           ))}
-          <Pressable style={[styles.shapeTile, styles.customTile]} onPress={onOpenBuilder}>
+          <Pressable {...pressHaptic} style={pressed(styles.shapeTile, styles.customTile)} onPress={onOpenBuilder}>
             <Feather name="plus" size={20} color={color.textDim} />
           </Pressable>
         </View>
@@ -181,7 +183,7 @@ function ElementTile({ preset, onAdd }: { preset: ElementPreset; onAdd: (p: Elem
   }, [preset.id])
 
   return (
-    <Pressable style={styles.elementTile} onPress={() => onAdd(preset)}>
+    <Pressable {...pressHaptic} style={pressed(styles.elementTile)} onPress={() => onAdd(preset)}>
       <View style={styles.elementCard}>
         <Canvas style={{ width: EL_W, height: EL_H }}>
           <Group>
@@ -211,7 +213,7 @@ function BigTile({
   onPress: () => void
 }) {
   return (
-    <Pressable style={styles.bigTile} onPress={onPress}>
+    <Pressable {...pressHaptic} style={pressed(styles.bigTile)} onPress={onPress}>
       <Feather name={icon} size={22} color={color.textMid} />
       <Text style={styles.bigTileLabel}>{label}</Text>
     </Pressable>
@@ -225,8 +227,7 @@ const styles = StyleSheet.create({
     height: 68,
     borderRadius: radius.lg,
     backgroundColor: color.bg2,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: color.hairlineBright,
+    ...raised,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
@@ -242,8 +243,7 @@ const styles = StyleSheet.create({
     height: EL_H,
     borderRadius: radius.sm,
     overflow: 'hidden',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: color.hairlineBright,
+    backgroundColor: color.bg2,
   },
   elementLabel: { color: color.textDim, fontSize: type.xs, maxWidth: EL_W },
   shapeTile: {
@@ -251,6 +251,7 @@ const styles = StyleSheet.create({
     height: 52,
     borderRadius: radius.md,
     backgroundColor: color.chip,
+    ...raised,
     alignItems: 'center',
     justifyContent: 'center',
   },

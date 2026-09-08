@@ -97,6 +97,8 @@ export type Layer = {
     size: number
     color: Color
     align: 'l' | 'c' | 'r'
+    /** 'v' = stacked, one glyph per line top to bottom (default across) */
+    orientation?: 'h' | 'v'
     /** stroked outline behind the fill (sports-card names over photos) */
     outline?: Stroke
     shadow?: { color: Color; dx: number; dy: number; blur: number }

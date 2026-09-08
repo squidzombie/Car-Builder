@@ -1,6 +1,6 @@
 import type { Color, Layer } from '../model/types'
 import type { Shape } from '../model/shapeTypes'
-import { CARD_W, CARD_H, defaultTransform } from '../model/types'
+import { CARD_W, CARD_H, DEFAULT_CORNER_RADIUS, defaultTransform } from '../model/types'
 import { makeFinish } from '../finishes/presets'
 import { newLayerId } from '../state/editorStore'
 
@@ -21,21 +21,46 @@ const layer = (partial: Partial<Layer> & Pick<Layer, 'name' | 'type'>): Layer =>
   ...partial,
 })
 
-/** Full-card frame: a hollow square stroke inset from the card edge. */
-function frame(inset: number, width: number, color: Color, finish?: Layer['finish']): Layer {
-  return layer({
-    name: 'Border',
-    type: 'shape',
-    transform: { x: inset, y: inset, rotation: 0, scaleX: 1, scaleY: 1 },
-    shape: {
-      shapeId: 'square',
-      paint: { color: '#00000000' },
-      stroke: { color, width },
-      w: CARD_W - inset * 2,
-      h: CARD_H - inset * 2,
-    },
-    finish,
-  })
+/**
+ * Flush frame: a band `width` px wide hugging the card edge and following
+ * its rounded corners — never an inset rectangle floating inside a shaped
+ * card. The outer boundary is the full card box (the card's own clip
+ * rounds it); the window keeps the corner radius minus the band, evenodd.
+ */
+function flushFrameShape(width: number): Shape {
+  const f = (v: number) => Number(v.toFixed(4))
+  const r = Math.max(0, DEFAULT_CORNER_RADIUS - width)
+  const x0 = width / CARD_W
+  const x1 = 1 - x0
+  const y0 = width / CARD_H
+  const y1 = 1 - y0
+  const rx = r / CARD_W
+  const ry = r / CARD_H
+  const arc = `A${f(rx)} ${f(ry)} 0 0 1`
+  const window =
+    `M${f(x0 + rx)} ${f(y0)} L${f(x1 - rx)} ${f(y0)} ${arc} ${f(x1)} ${f(y0 + ry)} ` +
+    `L${f(x1)} ${f(y1 - ry)} ${arc} ${f(x1 - rx)} ${f(y1)} ` +
+    `L${f(x0 + rx)} ${f(y1)} ${arc} ${f(x0)} ${f(y1 - ry)} ` +
+    `L${f(x0)} ${f(y0 + ry)} ${arc} ${f(x0 + rx)} ${f(y0)} Z`
+  return {
+    id: `frame-flush-${width}`,
+    name: `Flush frame ${width}`,
+    fillRule: 'evenodd',
+    path: 'M0 0 L1 0 L1 1 L0 1 Z ' + window,
+    builtIn: false,
+  }
+}
+
+/** A flush frame as a preset build: the band, plus any extra layers/shapes. */
+function frame(
+  width: number,
+  color: Color,
+  finish?: Layer['finish'],
+  extras: Layer[] = [],
+  shapes: Shape[] = [],
+): ElementBuild {
+  const shape = flushFrameShape(width)
+  return { shapes: [shape, ...shapes], layers: [frameShape(shape, color, finish), ...extras] }
 }
 
 /** Stamp layer helper. */
@@ -179,7 +204,7 @@ function frameShape(shape: Shape, color: Color, finish?: Layer['finish']): Layer
 }
 
 export const BORDER_PRESETS: ElementPreset[] = [
-  { id: 'thin', name: 'Thin', build: () => ({ layers: [frame(22, 8, '#f4f2ec')] }) },
+  { id: 'thin', name: 'Thin', build: () => frame(14, '#f4f2ec') },
   {
     id: 'angle-cut',
     name: 'Angle cut',
@@ -215,95 +240,84 @@ export const BORDER_PRESETS: ElementPreset[] = [
   {
     id: 'gold-plate',
     name: 'Gold plate',
-    build: () => ({
-      layers: [frame(18, 22, '#f1c40f', makeFinish('metallic', 'gold', { intensity: 0.9 }))],
-    }),
+    build: () => frame(30, '#f1c40f', makeFinish('metallic', 'gold', { intensity: 0.9 })),
   },
   {
     id: 'refractor',
     name: 'Refractor',
-    build: () => ({
-      layers: [frame(18, 14, '#ffffff', makeFinish('spectrum', 'refractor', { intensity: 1 }))],
-    }),
+    build: () => frame(22, '#ffffff', makeFinish('spectrum', 'refractor', { intensity: 1 })),
   },
   {
     id: 'circles-foil',
     name: 'Circle foil',
-    build: () => ({
-      layers: [frame(16, 30, '#ffffff', makeFinish('geometric', 'circles', { intensity: 0.9 }))],
-    }),
+    build: () => frame(40, '#ffffff', makeFinish('geometric', 'circles', { intensity: 0.9 })),
   },
   {
     id: 'corner-studs',
     name: 'Corner studs',
-    build: () => ({
-      layers: [
-        frame(26, 6, '#f4f2ec'),
+    build: () =>
+      frame(12, '#f4f2ec', undefined, [
         stamps('Corner studs', 'diamond', '#f1c40f', 56, [
           { x: 52, y: 52 },
           { x: CARD_W - 52, y: 52 },
           { x: 52, y: CARD_H - 52 },
           { x: CARD_W - 52, y: CARD_H - 52 },
         ]),
-      ],
-    }),
+      ]),
   },
   {
     id: 'deco-corners',
     name: 'Deco corners',
-    build: () => ({
-      shapes: [DECO_BRACKET],
-      layers: [
-        frame(34, 5, '#f4f2ec'),
-        stamps('Deco corners', 'deco-bracket', '#f1c40f', 110, [
-          { x: 78, y: 78 },
-          { x: CARD_W - 78, y: 78, rotation: 90 },
-          { x: CARD_W - 78, y: CARD_H - 78, rotation: 180 },
-          { x: 78, y: CARD_H - 78, rotation: 270 },
-        ]),
-      ],
-    }),
+    build: () =>
+      frame(
+        10,
+        '#f4f2ec',
+        undefined,
+        [
+          stamps('Deco corners', 'deco-bracket', '#f1c40f', 110, [
+            { x: 78, y: 78 },
+            { x: CARD_W - 78, y: 78, rotation: 90 },
+            { x: CARD_W - 78, y: CARD_H - 78, rotation: 180 },
+            { x: 78, y: CARD_H - 78, rotation: 270 },
+          ]),
+        ],
+        [DECO_BRACKET],
+      ),
   },
   {
     id: 'pennant',
     name: 'Pennant edge',
-    build: () => ({
-      layers: [
-        frame(20, 8, '#f4f2ec'),
+    build: () =>
+      frame(14, '#f4f2ec', undefined, [
         stamps('Pennants', 'triangle', '#e63946', 42, [
           ...edgeRun(9, 56).map((p) => ({ ...p, rotation: 180 })),
           ...edgeRun(9, CARD_H - 56),
         ]),
-      ],
-    }),
+      ]),
   },
   {
     id: 'ticket',
     name: 'Ticket',
-    build: () => ({
-      layers: [
-        frame(24, 10, '#f4f2ec'),
+    build: () =>
+      frame(16, '#f4f2ec', undefined, [
         stamps('Perforations', 'circle', '#0b0e19', 26, [
           ...sideRun(12, 24),
           ...sideRun(12, CARD_W - 24),
         ]),
-      ],
-    }),
+      ]),
   },
   {
     id: 'stitched',
     name: 'Stitched',
-    build: () => ({
-      layers: [
-        frame(26, 12, '#7c5c3e'),
+    build: () =>
+      frame(40, '#7c5c3e', undefined, [
         stamps('Stitches', 'square', '#f4f2ec', 22, [
           ...edgeRun(14, 26).map((p) => ({ ...p, scale: 0.55 })),
           ...edgeRun(14, CARD_H - 26).map((p) => ({ ...p, scale: 0.55 })),
           ...sideRun(18, 26).map((p) => ({ ...p, rotation: 90, scale: 0.55 })),
           ...sideRun(18, CARD_W - 26).map((p) => ({ ...p, rotation: 90, scale: 0.55 })),
         ]),
-      ],
-    }),
+      ]),
   },
 ]
 

@@ -113,3 +113,30 @@ export const pressed =
   (...styles: StyleProp<ViewStyle>[]) =>
   (state: PressableStateCallbackType): StyleProp<ViewStyle> =>
     [...styles, state.pressed && sunk]
+
+// ---- Build 7 (M7 visual pass): the FX-picker v3 language, shared ----
+// Option groups live on ONE contained surface (`panel`); the chosen option
+// is a soft filled pill on that surface (no 1px-bordered chips); previews
+// are live tiles with tiny captions; selection = the accent, nothing else.
+
+/** The one-surface container for a group of options. */
+export const panel: ViewStyle = {
+  backgroundColor: color.bg2,
+  borderRadius: radius.xl,
+  overflow: 'hidden',
+}
+
+/** An option inside a panel or track: quiet at rest, filled when chosen. */
+export const pill: ViewStyle = {
+  minHeight: 34,
+  paddingHorizontal: 14,
+  borderRadius: radius.md,
+  alignItems: 'center',
+  justifyContent: 'center',
+}
+export const pillActive: ViewStyle = { backgroundColor: color.chipActive, ...raised }
+export const pillText: TextStyle = { color: color.textDim, fontSize: type.md }
+export const pillTextActive: TextStyle = { color: color.accent, fontWeight: '600' }
+
+/** 8pt spacing scale. */
+export const space = { xs: 4, sm: 8, md: 12, lg: 16, xl: 20 } as const

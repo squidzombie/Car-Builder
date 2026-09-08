@@ -1,10 +1,9 @@
 import React from 'react'
-import { Pressable, StyleSheet, Text, View } from 'react-native'
 import type { ConditionPreset } from '../model/types'
 import { useEditor } from '../state/useEditor'
 import { Sheet } from '../editor/Sheet'
 import { MiniSlider } from '../editor/MiniSlider'
-import { chip, chipActive, chipText, chipTextActive } from '../editor/theme'
+import { Hint, Panel, Pill, PillRow } from '../editor/controls'
 
 // Card condition / grade (Build 4): a card-level, tilt-reactive wear
 // overlay — scratches that glint, whitened edges, scuffed corners. The
@@ -31,20 +30,18 @@ export function ConditionSheet({ onClose }: { onClose: () => void }) {
 
   return (
     <Sheet title="Condition" onClose={onClose}>
-      <View style={styles.row}>
-        {PRESETS.map(([preset, label]) => {
-          const active = preset === null ? !condition : condition?.preset === preset
-          return (
-            <Pressable
+      <Panel>
+        <PillRow scroll>
+          {PRESETS.map(([preset, label]) => (
+            <Pill
               key={label}
-              style={[styles.chip, active && styles.chipActive]}
+              label={label}
+              active={preset === null ? !condition : condition?.preset === preset}
               onPress={() => setPreset(preset)}
-            >
-              <Text style={[styles.chipText, active && styles.chipTextActive]}>{label}</Text>
-            </Pressable>
-          )
-        })}
-      </View>
+            />
+          ))}
+        </PillRow>
+      </Panel>
       {condition ? (
         <MiniSlider
           label={`Wear · ${condition.intensity.toFixed(2)}`}
@@ -58,15 +55,9 @@ export function ConditionSheet({ onClose }: { onClose: () => void }) {
               .applyTransient((doc) => void (doc.condition && (doc.condition.intensity = v)))
           }
         />
-      ) : null}
+      ) : (
+        <Hint>Tilt the card to see the wear catch the light</Hint>
+      )}
     </Sheet>
   )
 }
-
-const styles = StyleSheet.create({
-  row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip,
-  chipActive,
-  chipText,
-  chipTextActive,
-})

@@ -4,11 +4,47 @@ import type { CardDocument } from '../model/types'
 import { getAssetUri } from '../model/assets'
 
 // Decode the SkImages a document references (image layers + raster
-// masks). Decoded images are cached for the app session; the returned
-// record only ever contains ready images — missing ones render the
-// placeholder until their decode lands and triggers a re-render.
+// masks). Decodes are cached for the app session and shared by every
+// mounted hook: a decode started by one screen (say, the template
+// chooser's previews) lands for all of them, a hook that mounts
+// mid-decode is still told when it finishes, and a decode that fails
+// (the picker's temp file not readable the instant it lands) retries
+// once — so a photo never sits undrawn waiting for an unrelated
+// re-render.
 
 const cache = new Map<string, SkImage>()
+const inflight = new Set<string>()
+const attempts = new Map<string, number>()
+const listeners = new Set<() => void>()
+const MAX_ATTEMPTS = 2
+
+function notify() {
+  for (const l of listeners) l()
+}
+
+function decode(id: string): void {
+  if (cache.has(id) || inflight.has(id)) return
+  // shared documents reference their assets by public URL directly
+  const uri = getAssetUri(id) ?? (id.startsWith('http') ? id : undefined)
+  if (!uri) return
+  const n = (attempts.get(id) ?? 0) + 1
+  if (n > MAX_ATTEMPTS) return
+  attempts.set(id, n)
+  inflight.add(id)
+  Skia.Data.fromURI(uri)
+    .then((data) => {
+      const img = data ? Skia.Image.MakeImageFromEncoded(data) : null
+      if (img) cache.set(id, img)
+      else throw new Error('decode failed')
+    })
+    .catch(() => {
+      if (n < MAX_ATTEMPTS) setTimeout(() => decode(id), 700)
+    })
+    .finally(() => {
+      inflight.delete(id)
+      if (cache.has(id)) notify()
+    })
+}
 
 function collectIds(doc: CardDocument): string[] {
   const ids: string[] = []
@@ -26,26 +62,23 @@ export function useDocImages(doc: CardDocument): Record<string, SkImage> {
   const ids = collectIds(doc)
   const key = ids.join(',')
 
+  // any decode landing anywhere re-renders every consumer
   useEffect(() => {
-    let alive = true
-    for (const id of ids) {
-      if (cache.has(id)) continue
-      // shared documents reference their assets by public URL directly
-      const uri = getAssetUri(id) ?? (id.startsWith('http') ? id : undefined)
-      if (!uri) continue
-      Skia.Data.fromURI(uri)
-        .then((data) => {
-          if (!alive || !data) return
-          const img = Skia.Image.MakeImageFromEncoded(data)
-          if (img) {
-            cache.set(id, img)
-            bump((n) => n + 1)
-          }
-        })
-        .catch(() => {})
-    }
+    const l = () => bump((n) => n + 1)
+    listeners.add(l)
     return () => {
-      alive = false
+      listeners.delete(l)
+    }
+  }, [])
+
+  useEffect(() => {
+    for (const id of ids) {
+      if (!cache.has(id)) {
+        // an id that failed earlier gets a fresh chance when a document
+        // references it again (its URI may have been registered since)
+        if ((attempts.get(id) ?? 0) >= MAX_ATTEMPTS && !inflight.has(id)) attempts.delete(id)
+        decode(id)
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key])

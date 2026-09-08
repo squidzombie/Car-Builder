@@ -60,7 +60,16 @@ export function LayerPanel({ onAddPress }: { onAddPress: () => void }) {
       </View>
 
       <ScrollView scrollEnabled={!drag} showsVerticalScrollIndicator={false}>
-        {n === 0 ? <Text style={styles.empty}>No layers yet — tap + to add one</Text> : null}
+        {n === 0 ? (
+          <View style={styles.empty}>
+            <Feather name="layers" size={22} color={color.textGhost} />
+            <Text style={styles.emptyTitle}>Nothing on this side yet</Text>
+            <Pressable {...pressHaptic} style={pressed(styles.emptyButton)} onPress={onAddPress}>
+              <Feather name="plus" size={15} color={color.onAccent} />
+              <Text style={styles.emptyButtonText}>Add a photo, text, or shape</Text>
+            </Pressable>
+          </View>
+        ) : null}
         {topFirst.map((layer, index) => {
           const selected = layer.id === selectedId
           const lifted = drag?.index === index
@@ -237,7 +246,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  empty: { color: color.textFaint, fontSize: type.md, textAlign: 'center', paddingVertical: 18 },
+  empty: { alignItems: 'center', gap: 10, paddingVertical: 18, paddingHorizontal: 16 },
+  emptyTitle: { color: color.textFaint, fontSize: type.md },
+  emptyButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    minHeight: 38,
+    paddingHorizontal: 16,
+    borderRadius: 19,
+    backgroundColor: color.accent,
+    ...raised,
+  },
+  emptyButtonText: { color: color.onAccent, fontSize: type.base, fontWeight: '600' },
   row: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -4,7 +4,8 @@ import { UNIFORMS, HELPERS } from './common.sksl'
 // offset and specular. Modes: 0 voronoi (cracked ice / facet), 1 circles
 // (overlapping ring lattice foil), 2 bismuth (stepped rectilinear
 // hoppers), 3 disco (scattered mirror-ball orbs catching light), 4
-// checkerboard (alternating mirrored tiles).
+// checkerboard (alternating mirrored tiles), 5 lattice (elongated diamond
+// outlines, stroke only).
 // uP0 = edge/line brightness
 // uP1 = per-cell hue spread
 // uP2 = cell specular strength
@@ -21,8 +22,35 @@ half4 main(float2 xy) {
   float aspect = uSize.x / uSize.y;
   float3 col = float3(0.0);
   float energy = 0.0; // drives alpha alongside specular
+  float baseA = 0.5;   // finishes normally veil the whole layer...
+  float specMul = 1.0; // ...the lattice exists only on its lines
 
-  if (uMode > 3.5) {
+  if (uMode > 4.5) {
+    // --- lattice: a stretched checkerboard drawn in lines — two steep
+    // line families crossing into tall diamond outlines, stroke only ---
+    float2 p = uv * float2(aspect, 1.0) * uP3 * uScale;
+    float2 n1 = float2(0.906, 0.423);  // normals 25° off horizontal, so
+    float2 n2 = float2(0.906, -0.423); // the lines run steep: ~2:1 diamonds
+    float u1 = dot(p, n1);
+    float u2 = dot(p, n2);
+    float d1 = 0.5 - abs(fract(u1) - 0.5);
+    float d2 = 0.5 - abs(fract(u2) - 0.5);
+    float lw = 0.055;
+    float line1 = smoothstep(lw, lw * 0.35, d1);
+    float line2 = smoothstep(lw, lw * 0.35, d2);
+    // each family glints as the tilt sweeps across it; the glint runs
+    // along the line so it reads as light sliding down a foil edge
+    float g1 = 0.3 + 0.7 * pow(max(0.0, sin(u2 * 0.35 + phase * 3.2)), 2.0);
+    float g2 = 0.3 + 0.7 * pow(max(0.0, sin(u1 * 0.35 - phase * 3.2 + 1.7)), 2.0);
+    float3 c1 = paletteColor(floor(u2) * 0.045 * uP1 + phase);
+    float3 c2 = paletteColor(floor(u1) * 0.045 * uP1 + phase + 0.3);
+    col = c1 * line1 * (0.6 + g1 * uP2) + c2 * line2 * (0.6 + g2 * uP2);
+    float mask = max(line1, line2);
+    col += mask * 0.15;
+    energy = (line1 * g1 + line2 * g2) * uP0;
+    baseA = 0.0;
+    specMul = mask;
+  } else if (uMode > 3.5) {
     // --- checkerboard: alternating mirrored tiles ---
     float2 p = uv * float2(aspect, 1.0) * uP3 * uScale;
     float2 cell = floor(p);
@@ -162,10 +190,10 @@ half4 main(float2 xy) {
   }
 
   float spec = specular(uv);
-  col += spec * 0.6;
-  col += grain(xy);
+  col += spec * 0.6 * specMul;
+  col += grain(xy) * max(specMul, baseA * 2.0);
 
-  float a = uIntensity * clamp(0.5 + energy + spec * 0.4, 0.0, 1.0);
+  float a = uIntensity * clamp(baseA + energy + spec * 0.4 * specMul, 0.0, 1.0);
   return half4(col * a, a);
 }
 `

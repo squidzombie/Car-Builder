@@ -35,3 +35,24 @@ describe('text outline + shadow', () => {
     expect(back.front.layers[0].text?.shadow?.blur).toBe(9)
   })
 })
+
+describe('text orientation', () => {
+  test('stacked orientation round-trips', () => {
+    const doc = blankCard('t', '2026-01-01T00:00:00.000Z')
+    const layer: Layer = {
+      id: 'v',
+      name: 'Vertical',
+      type: 'text',
+      transform: { x: 60, y: 120, rotation: 0, scaleX: 1, scaleY: 1 },
+      opacity: 1,
+      blendMode: 'srcOver',
+      locked: false,
+      visible: true,
+      text: { content: 'ROOKIE', font: 'bebas', size: 80, color: '#ffffff', align: 'c', orientation: 'v' },
+    }
+    doc.front.layers.push(layer)
+    const back = deserializeCard(serializeCard(doc))
+    expect(back).toEqual(doc)
+    expect(back.front.layers[0].text?.orientation).toBe('v')
+  })
+})

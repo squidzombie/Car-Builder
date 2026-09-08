@@ -3,6 +3,7 @@ import {
   Animated,
   BackHandler,
   Easing,
+  Keyboard,
   KeyboardAvoidingView,
   Pressable,
   StyleSheet,
@@ -15,7 +16,11 @@ import { pressHaptic } from '../view/haptics'
 // The one bottom-sheet container (Build 3): grab handle, title row, Done,
 // consistent padding/elevation. `backdrop` dims and closes on tap — use it
 // for modal choices; leave it off when the card above should stay visible
-// and interactive (mask/text/finish editors).
+// and interactive (mask/text/finish editors). `onFrame` reports where the
+// sheet sits on screen (and null on close) so the editor can keep the
+// layer being edited visible above it.
+
+export type SheetFrame = { top: number; height: number }
 
 type Props = {
   title: string
@@ -25,9 +30,18 @@ type Props = {
   children: React.ReactNode
   /** optional extra header control rendered before the close button */
   headerRight?: React.ReactNode
+  onFrame?: (frame: SheetFrame | null) => void
 }
 
-export function Sheet({ title, onClose, closeLabel = 'Done', backdrop, children, headerRight }: Props) {
+export function Sheet({
+  title,
+  onClose,
+  closeLabel = 'Done',
+  backdrop,
+  children,
+  headerRight,
+  onFrame,
+}: Props) {
   // entrance: sheet slides up a touch while backdrop and content fade in
   const enter = useRef(new Animated.Value(0)).current
   useEffect(() => {
@@ -51,6 +65,27 @@ export function Sheet({ title, onClose, closeLabel = 'Done', backdrop, children,
     return () => sub.remove()
   }, [])
 
+  // where the sheet sits: measured on layout and again after the keyboard
+  // moves it (the keyboard-avoiding padding shifts the sheet, not its size)
+  const sheetRef = useRef<View>(null)
+  const onFrameRef = useRef(onFrame)
+  onFrameRef.current = onFrame
+  const measure = () => {
+    if (!onFrameRef.current) return
+    sheetRef.current?.measureInWindow((_x, y, _w, h) => {
+      onFrameRef.current?.({ top: y, height: h })
+    })
+  }
+  useEffect(() => {
+    const show = Keyboard.addListener('keyboardDidShow', () => setTimeout(measure, 60))
+    const hide = Keyboard.addListener('keyboardDidHide', () => setTimeout(measure, 60))
+    return () => {
+      show.remove()
+      hide.remove()
+      onFrameRef.current?.(null)
+    }
+  }, [])
+
   return (
     <View style={styles.overlay} pointerEvents="box-none">
       {backdrop ? (
@@ -61,7 +96,11 @@ export function Sheet({ title, onClose, closeLabel = 'Done', backdrop, children,
       {/* keep the sheet's inputs above the keyboard — needed on both
           platforms: edge-to-edge Android doesn't resize the window either */}
       <KeyboardAvoidingView behavior="padding" pointerEvents="box-none">
-        <Animated.View style={[styles.sheet, { opacity: enter, transform: [{ translateY }] }]}>
+        <Animated.View
+          ref={sheetRef}
+          onLayout={measure}
+          style={[styles.sheet, { opacity: enter, transform: [{ translateY }] }]}
+        >
           <View style={styles.handle} />
           <View style={styles.headerRow}>
             <Text style={styles.title} numberOfLines={1}>
@@ -102,10 +141,10 @@ const styles = StyleSheet.create({
     backgroundColor: color.bg1,
     borderTopLeftRadius: radius.xl,
     borderTopRightRadius: radius.xl,
-    paddingTop: 8,
+    paddingTop: 10,
     paddingBottom: 34,
     paddingHorizontal: 16,
-    gap: 12,
+    gap: 14,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: color.hairlineBright,
     shadowColor: '#000000',
