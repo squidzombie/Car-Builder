@@ -1,25 +1,14 @@
-import React, { useEffect, useMemo, useState } from 'react'
-import {
-  Alert,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-  useWindowDimensions,
-} from 'react-native'
+import React, { useMemo, useState } from 'react'
+import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native'
 import * as ImagePicker from 'expo-image-picker'
 import { Feather } from '@expo/vector-icons'
-import { Canvas, Group } from '@shopify/react-native-skia'
-import { CardRenderer } from '../renderer/CardRenderer'
-import { defaultViewState, type CardDocument } from '../model/types'
+import type { CardDocument } from '../model/types'
 import { TEMPLATES } from '../templates'
 import { injectPhoto, type PhotoPick } from '../templates/photo'
-import { deleteCard, listCardDocs, persistAsset, saveCard } from '../model/storage'
+import { persistAsset } from '../model/storage'
 import { registerAsset, setAssetUri } from '../model/assets'
 import { cutoutAvailable, liftSubject } from '../native/subjectCutout'
-import { useDocImages } from './useDocImages'
+import { CardThumb, SavedShelf } from './SavedShelf'
 import { Sheet } from '../editor/Sheet'
 import { Panel, Pill, PillRow } from '../editor/controls'
 import { color, pressed, radius, raised, type } from '../editor/theme'
@@ -27,23 +16,22 @@ import { pressHaptic, tick } from './haptics'
 
 // New-card chooser (M5, §8) with the photo-first quick flow: pick a photo
 // first and every template preview renders WITH it, so the first great
-// card is one tap away. Saved cards reopen from the shelf (long-press to
-// delete). Templates start a fresh document.
+// card is one tap away. Saved cards reopen from the shelf (long-press for
+// options). Templates start a fresh document.
 
 const TILE_W = 132
-const TILE_H = 185
-const MINI_W = 84
-const MINI_H = 118
 
 type Props = {
   onPick: (templateId: string, photo?: PhotoPick) => void
   onOpenSaved: (doc: CardDocument) => void
   onClose: () => void
+  /** the saved-cards shelf (off when the home screen already shows it) */
+  showSaved?: boolean
 }
 
 type Picked = PhotoPick & { uri: string }
 
-export function TemplateChooser({ onPick, onOpenSaved, onClose }: Props) {
+export function TemplateChooser({ onPick, onOpenSaved, onClose, showSaved = true }: Props) {
   const { height } = useWindowDimensions()
   const [photo, setPhoto] = useState<Picked | null>(null)
   const [original, setOriginal] = useState<Picked | null>(null)
@@ -56,53 +44,6 @@ export function TemplateChooser({ onPick, onOpenSaved, onClose }: Props) {
       }),
     [photo],
   )
-  const [saved, setSaved] = useState<CardDocument[]>([])
-  useEffect(() => {
-    listCardDocs().then(setSaved).catch(() => {})
-  }, [])
-  // saved-card management: long-press a tile to get its actions
-  const [managing, setManaging] = useState<CardDocument | null>(null)
-  const [renameDraft, setRenameDraft] = useState<string | null>(null)
-
-  const title = (d: CardDocument) => d.meta.title ?? d.meta.templateId ?? 'Card'
-  const duplicateSaved = (d: CardDocument) => {
-    const now = new Date().toISOString()
-    const copy: CardDocument = {
-      ...d,
-      id: `card-${Date.now().toString(36)}`,
-      meta: { ...d.meta, title: `${title(d)} copy`, createdAt: now, updatedAt: now },
-    }
-    saveCard(copy).catch(() => {})
-    setSaved((s) => [copy, ...s])
-    setManaging(null)
-    tick()
-  }
-  const commitRename = () => {
-    if (!managing || renameDraft === null) return
-    const trimmed = renameDraft.trim()
-    if (trimmed) {
-      const updated: CardDocument = { ...managing, meta: { ...managing.meta, title: trimmed } }
-      saveCard(updated).catch(() => {})
-      setSaved((s) => s.map((d) => (d.id === updated.id ? updated : d)))
-      setManaging(updated)
-    }
-    setRenameDraft(null)
-  }
-  const confirmDelete = (d: CardDocument) => {
-    Alert.alert(`Delete "${title(d)}"?`, 'This cannot be undone.', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: () => {
-          deleteCard(d.id).catch(() => {})
-          setSaved((s) => s.filter((x) => x.id !== d.id))
-          setManaging(null)
-        },
-      },
-    ])
-  }
-
   const pickPhoto = async () => {
     const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 1 })
     const asset = res.assets?.[0]
@@ -176,51 +117,10 @@ export function TemplateChooser({ onPick, onOpenSaved, onClose }: Props) {
           </Panel>
         ) : null}
 
-        {saved.length > 0 && !photo ? (
-          <>
-            <Text style={styles.sectionTitle}>Your cards · hold for options</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <View style={styles.shelf}>
-                {saved.map((doc) => (
-                  <SavedTile
-                    key={doc.id}
-                    doc={doc}
-                    managing={managing?.id === doc.id}
-                    onOpen={() => onOpenSaved(doc)}
-                    onHold={() => {
-                      tick()
-                      setRenameDraft(null)
-                      setManaging(managing?.id === doc.id ? null : doc)
-                    }}
-                  />
-                ))}
-              </View>
-            </ScrollView>
-            {managing ? (
-              <Panel style={styles.manageBar}>
-                {renameDraft !== null ? (
-                  <TextInput
-                    style={styles.renameInput}
-                    value={renameDraft}
-                    onChangeText={setRenameDraft}
-                    onSubmitEditing={commitRename}
-                    onBlur={commitRename}
-                    placeholder="Card name"
-                    placeholderTextColor={color.textFaint}
-                    autoFocus
-                    selectTextOnFocus
-                  />
-                ) : (
-                  <PillRow scroll>
-                    <Pill label="Open" onPress={() => onOpenSaved(managing)} />
-                    <Pill label="Rename" onPress={() => setRenameDraft(title(managing))} />
-                    <Pill label="Duplicate" onPress={() => duplicateSaved(managing)} />
-                    <Pill label="Delete" danger onPress={() => confirmDelete(managing)} />
-                  </PillRow>
-                )}
-              </Panel>
-            ) : null}
-          </>
+        {showSaved && !photo ? (
+          <View style={styles.savedWrap}>
+            <SavedShelf title="Your cards · hold for options" onOpen={onOpenSaved} />
+          </View>
         ) : null}
 
         <Text style={styles.sectionTitle}>{photo ? 'Your photo, every look' : 'Templates'}</Text>
@@ -241,57 +141,10 @@ export function TemplateChooser({ onPick, onOpenSaved, onClose }: Props) {
 }
 
 function TemplateTile({ name, doc, onPick }: { name: string; doc: CardDocument; onPick: () => void }) {
-  const assets = useDocImages(doc)
   return (
     <Pressable {...pressHaptic} style={pressed(styles.tile)} onPress={onPick}>
-      <View style={[styles.tileRing, styles.tileCard]}>
-        <Canvas style={{ width: TILE_W, height: TILE_H }}>
-          <Group>
-            <CardRenderer
-              doc={doc}
-              side="front"
-              viewState={defaultViewState()}
-              assets={assets}
-              scale={TILE_W / doc.size.w}
-            />
-          </Group>
-        </Canvas>
-      </View>
+      <CardThumb doc={doc} width={TILE_W} />
       <Text style={styles.tileLabel}>{name}</Text>
-    </Pressable>
-  )
-}
-
-function SavedTile({
-  doc,
-  managing,
-  onOpen,
-  onHold,
-}: {
-  doc: CardDocument
-  managing: boolean
-  onOpen: () => void
-  onHold: () => void
-}) {
-  const assets = useDocImages(doc)
-  return (
-    <Pressable {...pressHaptic} style={pressed(styles.tile)} onPress={onOpen} onLongPress={onHold}>
-      <View style={[styles.tileRing, styles.tileCard, managing && styles.tileRingActive]}>
-        <Canvas style={{ width: MINI_W, height: MINI_H }}>
-          <Group>
-            <CardRenderer
-              doc={doc}
-              side="front"
-              viewState={defaultViewState()}
-              assets={assets}
-              scale={MINI_W / doc.size.w}
-            />
-          </Group>
-        </Canvas>
-      </View>
-      <Text style={styles.tileLabel} numberOfLines={1}>
-        {doc.meta.title ?? doc.meta.templateId ?? 'Card'}
-      </Text>
     </Pressable>
   )
 }
@@ -328,27 +181,7 @@ const styles = StyleSheet.create({
     rowGap: 16,
   },
   tile: { alignItems: 'center', gap: 6 },
-  // the selection ring sits outside the card so choosing never reflows
-  tileRing: {
-    borderRadius: radius.lg,
-    overflow: 'hidden',
-    borderWidth: 2,
-    borderColor: 'transparent',
-    backgroundColor: color.bg2,
-  },
-  tileRingActive: { borderColor: color.accent },
-  tileCard: {},
   tileLabel: { color: color.textMid, fontSize: type.md },
   hint: { color: color.textGhost, fontSize: type.xs, textAlign: 'center', paddingTop: 12 },
-  shelf: { flexDirection: 'row', gap: 12, paddingVertical: 2, marginBottom: 12 },
-  manageBar: { marginBottom: 14 },
-  renameInput: {
-    color: color.text,
-    fontSize: type.base,
-    backgroundColor: color.chip,
-    borderRadius: radius.md,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-    margin: 8,
-  },
+  savedWrap: { marginBottom: 14 },
 })

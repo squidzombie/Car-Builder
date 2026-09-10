@@ -1,4 +1,29 @@
-# START HERE — 2026-09-08 (afternoon): M7 visual pass + review-3 batch landed
+# START HERE — 2026-09-10: HOME SCREEN landed (studio home + How it works)
+
+Max: "I don't like that it just takes you right into a card. The homepage
+should also have a really well designed how-to." Built (he picked the
+"Studio home" layout from three options), emulator-verified:
+- App routes home → card → edit (App.tsx Screen type). Boot lands on
+  HOME; the last-opened card is the home HERO (TiltCard, live tilt, tap
+  opens the card view). New card = the one accent CTA (opens
+  TemplateChooser with showSaved={false}). "Your cards" shelf
+  (view/SavedShelf.tsx: CardThumb + useSavedCards + hold-for-options,
+  shared with the chooser). "How it works" (view/HowItWorks.tsx): five
+  snap-paged steps with LIVE demos — a showcase card that really tilts,
+  one that auto-flips (TiltCard autoFlipMs), photo-first (Portrait thumb
+  + camera badge), three real finish swatches, share tiles; dots.
+- Card view (was PreviewScreen, now CardScreen): top bar [‹ Home] [Grade];
+  bottom [Edit card] [Share]. "New" button and the one-time "Make it
+  shine" welcome sheet are gone (the how-to is on home for everyone;
+  storage.loadOnboarded/saveOnboarded are now unused).
+- TiltCard gained onPress (replaces tap-to-flip) and autoFlipMs.
+Not yet in a TestFlight build (build 8 predates this) — next build 9.
+Ideas if Max wants more: a "See all" gallery screen when the shelf
+grows; first-launch auto-scroll to How it works; a Settings gear.
+
+---
+
+# Earlier — 2026-09-08 (afternoon): M7 visual pass + review-3 batch landed
 
 Session on Fable 5.1. Commits on `claude/car-builder-handoff-zae22z`,
 pushed as squidzombie (`gh auth switch -u squidzombie` before any push).

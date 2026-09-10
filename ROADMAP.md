@@ -132,7 +132,8 @@ per-screen tweaks.
   (ImageAnalysisInteraction) still possible later.
 - DONE 2026-09-01: M7 onboarding (one-time "Make it shine" welcome
   sheet over the tilting demo card, flag in the state file).
-- M7 remainder: store assets, empty states. (Perf pass DONE 2026-09-03:
+- M7 remainder: store assets. (Empty states DONE 2026-09-08; HOME SCREEN +
+  How-it-works onboarding DONE 2026-09-10; perf pass DONE 2026-09-03:
   UI-thread tilt via shared values, 59 fps while tilting.)
 - OPEN QUESTION (Max, 2026-09-03): the photo-first "Start with a photo"
   hero in the New-card chooser — built and working, but Max isn't sure

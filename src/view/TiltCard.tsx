@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { Pressable, StyleSheet, View } from 'react-native'
 import Animated, {
   useAnimatedStyle,
@@ -27,12 +27,18 @@ export function TiltCard({
   width,
   assets,
   onSideChange,
+  onPress,
+  autoFlipMs,
 }: {
   doc: CardDocument
   tilt: SharedValue<ViewState>
   width: number
   assets?: Record<string, SkImage>
   onSideChange?: (side: 'front' | 'back') => void
+  /** replaces tap-to-flip (e.g. the home hero opens the card instead) */
+  onPress?: () => void
+  /** demo mode: flip by itself on this interval */
+  autoFlipMs?: number
 }) {
   const [side, setSideState] = useState<'front' | 'back'>('front')
   const setSide = (s: 'front' | 'back') => {
@@ -47,13 +53,21 @@ export function TiltCard({
   // its CSS size is fractional (found via /c/{id} viewer bring-up)
   const height = Math.round(doc.size.h * scale)
 
-  const onFlip = () => {
-    thump()
+  const doFlip = (haptic: boolean) => {
+    if (haptic) thump()
     flipped.current = !flipped.current
     flip.value = withSpring(flipped.current ? 1 : 0, { damping: 14, stiffness: 120 })
     // swap the rendered side at the halfway point of the spring
     setTimeout(() => setSide(flipped.current ? 'back' : 'front'), 140)
   }
+  const onFlip = () => doFlip(true)
+
+  useEffect(() => {
+    if (!autoFlipMs) return
+    const id = setInterval(() => doFlip(false), autoFlipMs)
+    return () => clearInterval(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoFlipMs])
 
   const cardStyle = useAnimatedStyle(() => {
     const v = tilt.value
@@ -80,7 +94,7 @@ export function TiltCard({
   }, [side])
 
   return (
-    <Pressable onPress={onFlip}>
+    <Pressable onPress={onPress ?? onFlip}>
       <Animated.View style={[styles.card, { width, height }, cardStyle]}>
         <View style={[{ width, height }, mirror]}>
           <Canvas style={{ width, height }}>

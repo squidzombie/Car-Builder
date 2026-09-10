@@ -16,13 +16,11 @@ import * as Sharing from 'expo-sharing'
 import { Canvas, useCanvasRef, type SkImage } from '@shopify/react-native-skia'
 import { useTilt } from './src/view/useTilt'
 import { TiltCard } from './src/view/TiltCard'
-import { TemplateChooser } from './src/view/TemplateChooser'
+import { HomeScreen } from './src/view/HomeScreen'
 import { ConditionSheet } from './src/view/ConditionSheet'
 import { useDocImages } from './src/view/useDocImages'
 import { useBundledFonts } from './src/view/useBundledFonts'
-import { TEMPLATES } from './src/templates'
 import { EditorScreen, type EditorIntent } from './src/editor/EditorScreen'
-import { injectPhoto } from './src/templates/photo'
 import { useEditor } from './src/state/useEditor'
 import { CardRenderer } from './src/renderer/CardRenderer'
 import { lightFromTilt, type CardDocument, type ViewState } from './src/model/types'
@@ -30,11 +28,9 @@ import { setAssetUri } from './src/model/assets'
 import {
   loadCard,
   loadLastOpened,
-  loadOnboarded,
   restoreAssets,
   saveCard,
   saveLastOpened,
-  saveOnboarded,
 } from './src/model/storage'
 import { ShareViewer } from './src/web/ShareViewer'
 import { shareConfigured } from './src/model/shareConfig'
@@ -51,11 +47,14 @@ const webShareId =
     ? /^\/c\/([a-z0-9-]+)/i.exec(window.location.pathname)?.[1] ?? null
     : null
 
-// Two screens sharing one document store: the tilting preview (the magic
-// moment, and the app's default view) and the editor. The working card
-// auto-saves (debounced) and is restored on launch (M6 local save, §9).
+type Screen = 'home' | 'card' | 'edit'
+
+// Three screens sharing one document store: home (your cards, new card,
+// how it works), the tilting card view (the magic moment), and the
+// editor. The working card auto-saves (debounced) and is restored on
+// launch (M6 local save, §9) as the home hero.
 export default function App() {
-  const [screen, setScreen] = useState<'preview' | 'edit'>('preview')
+  const [screen, setScreen] = useState<Screen>('home')
   const [intent, setIntent] = useState<EditorIntent>(null)
   const [booted, setBooted] = useState(false)
   useBundledFonts()
@@ -104,32 +103,33 @@ export default function App() {
     return <ShareViewer cardId={webShareId} />
   }
 
+  const openEditor = (i: EditorIntent) => {
+    setIntent(i)
+    setScreen('edit')
+  }
+
   return (
     <>
       <StatusBar style="light" />
-      {screen === 'preview' ? (
-        <PreviewScreen
-          onEdit={(i) => {
-            setIntent(i ?? null)
-            setScreen('edit')
-          }}
-        />
+      {screen === 'home' ? (
+        <HomeScreen onOpenCard={() => setScreen('card')} onEdit={openEditor} />
+      ) : screen === 'card' ? (
+        <CardScreen onEdit={() => openEditor(null)} onHome={() => setScreen('home')} />
       ) : (
-        <EditorScreen intent={intent} onPreview={() => setScreen('preview')} />
+        <EditorScreen intent={intent} onPreview={() => setScreen('card')} />
       )}
     </>
   )
 }
 
-function PreviewScreen({ onEdit }: { onEdit: (intent?: EditorIntent) => void }) {
+/** The tilting card: flip, grade, rename, share, edit. */
+function CardScreen({ onEdit, onHome }: { onEdit: () => void; onHome: () => void }) {
   const { width } = useWindowDimensions()
   const { tilt, panHandlers } = useTilt()
   const doc = useEditor((s) => s.doc)
   const assets = useDocImages(doc)
-  const [choosing, setChoosing] = useState(false)
   const [grading, setGrading] = useState(false)
   const [renaming, setRenaming] = useState(false)
-  const [welcome, setWelcome] = useState(false)
   const [draftTitle, setDraftTitle] = useState('')
   const [exportSide, setExportSide] = useState<'front' | 'back' | null>(null)
   const [shareOpen, setShareOpen] = useState(false)
@@ -137,23 +137,6 @@ function PreviewScreen({ onEdit }: { onEdit: (intent?: EditorIntent) => void }) 
   const [videoProgress, setVideoProgress] = useState(0)
   const [linking, setLinking] = useState(false)
   const shownSide = useRef<'front' | 'back'>('front')
-
-  // M7 onboarding: a one-time welcome over the already-tilting demo card
-  useEffect(() => {
-    let alive = true
-    loadOnboarded()
-      .then((seen) => {
-        if (alive && !seen) setWelcome(true)
-      })
-      .catch(() => {})
-    return () => {
-      alive = false
-    }
-  }, [])
-  const dismissWelcome = () => {
-    setWelcome(false)
-    saveOnboarded().catch(() => {})
-  }
 
   const title = doc.meta.title ?? 'Untitled card'
   const commitTitle = () => {
@@ -186,11 +169,17 @@ function PreviewScreen({ onEdit }: { onEdit: (intent?: EditorIntent) => void }) 
         assets={assets}
         onSideChange={(s) => (shownSide.current = s)}
       />
-      <Pressable {...pressHaptic} style={pressed(styles.gradeChip)} hitSlop={8} onPress={() => setGrading(true)}>
-        <Text style={styles.gradeChipText}>
-          {doc.condition ? `Grade · ${doc.condition.preset}` : 'Grade'}
-        </Text>
-      </Pressable>
+      <View style={styles.topBar}>
+        <Pressable {...pressHaptic} style={pressed(styles.topChip)} hitSlop={8} onPress={onHome}>
+          <Feather name="chevron-left" size={16} color={color.textMid} />
+          <Text style={styles.topChipText}>Home</Text>
+        </Pressable>
+        <Pressable {...pressHaptic} style={pressed(styles.topChip)} hitSlop={8} onPress={() => setGrading(true)}>
+          <Text style={styles.topChipText}>
+            {doc.condition ? `Grade · ${doc.condition.preset}` : 'Grade'}
+          </Text>
+        </Pressable>
+      </View>
       <View style={styles.controls}>
         <Pressable {...pressHaptic}
           style={pressed(styles.titleRow)}
@@ -206,11 +195,8 @@ function PreviewScreen({ onEdit }: { onEdit: (intent?: EditorIntent) => void }) 
           <Feather name="edit-2" size={12} color={color.textFaint} />
         </Pressable>
         <View style={styles.buttonRow}>
-          <Pressable {...pressHaptic} style={pressed(styles.editButton, styles.primaryButton)} onPress={() => onEdit()} hitSlop={6}>
+          <Pressable {...pressHaptic} style={pressed(styles.editButton, styles.primaryButton)} onPress={onEdit} hitSlop={6}>
             <Text style={[styles.editButtonText, styles.primaryButtonText]}>Edit card</Text>
-          </Pressable>
-          <Pressable {...pressHaptic} style={pressed(styles.editButton)} onPress={() => setChoosing(true)} hitSlop={6}>
-            <Text style={styles.editButtonText}>New</Text>
           </Pressable>
           <Pressable
             {...pressHaptic}
@@ -240,29 +226,6 @@ function PreviewScreen({ onEdit }: { onEdit: (intent?: EditorIntent) => void }) 
         </View>
         <Text style={styles.hint}>Tilt or drag to shine • tap to flip • Share exports this side</Text>
       </View>
-      {welcome ? (
-        <Sheet title="Make it shine" onClose={dismissWelcome} closeLabel="Skip">
-          <View style={styles.welcomeRow}>
-            <Feather name="smartphone" size={18} color={color.accent} />
-            <Text style={styles.welcomeText}>
-              Tilt your phone — the foil shifts like a real card
-            </Text>
-          </View>
-          <View style={styles.welcomeRow}>
-            <Feather name="refresh-cw" size={18} color={color.accent} />
-            <Text style={styles.welcomeText}>Tap the card to flip it over</Text>
-          </View>
-          <View style={styles.welcomeRow}>
-            <Feather name="edit-3" size={18} color={color.accent} />
-            <Text style={styles.welcomeText}>
-              Edit card to add photos, foil, stamps, and your name
-            </Text>
-          </View>
-          <Pressable {...pressHaptic} style={pressed(styles.welcomeButton)} onPress={dismissWelcome}>
-            <Text style={styles.welcomeButtonText}>Start creating</Text>
-          </Pressable>
-        </Sheet>
-      ) : null}
       {shareOpen ? (
         <Sheet title="Share" onClose={() => setShareOpen(false)} closeLabel="Cancel" backdrop>
           <Pressable
@@ -323,26 +286,6 @@ function PreviewScreen({ onEdit }: { onEdit: (intent?: EditorIntent) => void }) 
             selectTextOnFocus
           />
         </Sheet>
-      ) : null}
-      {choosing ? (
-        <TemplateChooser
-          onClose={() => setChoosing(false)}
-          onPick={(templateId, photo) => {
-            const template = TEMPLATES.find((t) => t.id === templateId)
-            if (template) {
-              let d = template.make(`card-${Date.now().toString(36)}`)
-              if (photo) d = injectPhoto(d, photo)
-              useEditor.getState().loadDoc(d)
-              setChoosing(false)
-              // photo-first: land in the editor with the name ready to type
-              onEdit(photo ? 'name' : null)
-            }
-          }}
-          onOpenSaved={(saved) => {
-            useEditor.getState().loadDoc(saved)
-            setChoosing(false)
-          }}
-        />
       ) : null}
       {grading ? <ConditionSheet onClose={() => setGrading(false)} /> : null}
       {exportSide ? (
@@ -418,6 +361,27 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  topBar: {
+    position: 'absolute',
+    top: 56,
+    left: 20,
+    right: 20,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  topChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    minHeight: 36,
+    paddingLeft: 10,
+    paddingRight: 14,
+    borderRadius: 18,
+    backgroundColor: color.chip,
+    ...raised,
+    justifyContent: 'center',
+  },
+  topChipText: { color: color.textMid, fontSize: t.md },
   controls: {
     position: 'absolute',
     bottom: 48,
@@ -446,7 +410,6 @@ const styles = StyleSheet.create({
   primaryButton: { backgroundColor: color.accent, ...raised },
   primaryButtonText: { color: color.onAccent, fontWeight: '700' },
   hint: { color: color.textFaint, fontSize: t.sm },
-  welcomeRow: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 4 },
   shareRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -460,29 +423,5 @@ const styles = StyleSheet.create({
   shareRowText: { flex: 1, gap: 2 },
   shareRowTitle: { color: color.text, fontSize: t.base, fontWeight: '600' },
   shareRowSub: { color: color.textDim, fontSize: t.sm },
-  welcomeText: { color: color.textMid, fontSize: t.base, flexShrink: 1, lineHeight: 20 },
-  welcomeButton: {
-    marginTop: 6,
-    minHeight: 44,
-    borderRadius: 22,
-    backgroundColor: color.accent,
-    ...raised,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  welcomeButtonText: { color: color.onAccent, fontSize: t.base, fontWeight: '700' },
   exportHolder: { position: 'absolute', left: -4000, top: 0 },
-  gradeChip: {
-    position: 'absolute',
-    top: 56,
-    left: 20,
-    minHeight: 36,
-    paddingHorizontal: 14,
-    borderRadius: 18,
-    backgroundColor: color.chip,
-    ...raised,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  gradeChipText: { color: color.textMid, fontSize: t.md },
 })
