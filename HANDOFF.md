@@ -17,7 +17,9 @@ should also have a really well designed how-to." Built (he picked the
   shine" welcome sheet are gone (the how-to is on home for everyone;
   storage.loadOnboarded/saveOnboarded are now unused).
 - TiltCard gained onPress (replaces tap-to-flip) and autoFlipMs.
-Not yet in a TestFlight build (build 8 predates this) — next build 9.
+Shipped as TestFlight build 9 (1.0.0) on 2026-09-10: EAS build 06ada866,
+submitted from the session (eas submit --id … --non-interactive), ASC
+processed VALID and in both groups within ~10 min (scripts/testflight.mjs).
 Ideas if Max wants more: a "See all" gallery screen when the shelf
 grows; first-launch auto-scroll to How it works; a Settings gear.
 
