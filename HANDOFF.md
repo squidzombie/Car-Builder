@@ -83,7 +83,7 @@ npx eas-cli submit -p ios --latest` (TESTFLIGHT.md).
 TestFlight notes (2026-09-10): build 8 (1.0.0) went up via EAS build
 bf3ea363 + Max's submit (FINISHED 2026-09-08 20:02 UTC). eas.json now
 carries submit.production.ios.ascAppId=6807185832 so
---platform is required when building in non-interactive mode works from a session. Re-submitting an
+`eas submit -p ios --latest --non-interactive` works from a session. Re-submitting an
 already-uploaded build ERRORS on Apple's side with no message in the
 CLI — the EAS GraphQL API (app.byId(...).submissions) shows the history
 (memory: eas-submission-status). A new build reaches testers only after
