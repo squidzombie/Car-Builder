@@ -43,3 +43,6 @@ yarn-error.*
 # local device-test artifacts (signed for one device / session-specific)
 *.ipa
 expo-qr.png
+
+# local credentials (ASC API keys)
+secrets/
