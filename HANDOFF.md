@@ -88,7 +88,13 @@ already-uploaded build ERRORS on Apple's side with no message in the
 CLI — the EAS GraphQL API (app.byId(...).submissions) shows the history
 (memory: eas-submission-status). A new build reaches testers only after
 it is added to the TestFlight group (or the group has automatic
-distribution on) — that was why build 8 never prompted.
+distribution on). UPDATE 2026-09-10: checked via the ASC API — build 8 is
+VALID / IN_BETA_TESTING and already in both internal groups ("Team (Expo)",
+"Squids", allBuilds on); Max's iCloud tester is INSTALLED. So the missing
+prompt was TestFlight not notifying, not distribution. Tool:
+`node scripts/testflight.mjs status | testers | add <build#> <group>` —
+ASC API helper, credentials in secrets/asc.json + AuthKey_*.p8 (git-ignored;
+Team key P5CX685FJR, role App Manager).
 
 ---
 
